@@ -39,4 +39,15 @@ public class ProductServiceImpl implements ProductService {
     public void deleteById(UUID id) {
         productRepository.deleteById(id);
     }
+
+    @Override
+    public Product update(UUID id, Product product) {
+        Product existing = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+        existing.setName(product.getName());
+        existing.setDescription(product.getDescription());
+        existing.setPrice(product.getPrice());
+        existing.setStock(product.getStock());
+        return productRepository.save(existing);
+    }
 }

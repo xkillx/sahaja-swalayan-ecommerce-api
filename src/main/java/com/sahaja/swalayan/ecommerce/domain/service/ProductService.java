@@ -10,5 +10,6 @@ public interface ProductService {
     Optional<Product> findById(UUID id);
     List<Product> findAll();
     void deleteById(UUID id);
+    Product update(UUID id, Product product);
     // Add more domain methods as needed
 }

@@ -69,6 +69,33 @@ public class ProductServiceImplIntegrationTest {
     }
 
     @Test
+    void testUpdateProduct() {
+        Product product = new Product(
+            null,
+            "Original Name",
+            "Original Description",
+            new Price(java.math.BigDecimal.valueOf(2000)),
+            new Stock(2)
+        );
+        Product saved = productService.save(product);
+
+        Product updatedData = new Product(
+            null,
+            "Updated Name",
+            "Updated Description",
+            new Price(java.math.BigDecimal.valueOf(3000)),
+            new Stock(5)
+        );
+        Product updated = productService.update(saved.getId(), updatedData);
+        assertThat(updated.getName()).isEqualTo("Updated Name");
+        assertThat(updated.getDescription()).isEqualTo("Updated Description");
+        assertThat(updated.getPrice().getValue()).isEqualByComparingTo("3000");
+        assertThat(updated.getStock().getValue()).isEqualTo(5);
+        // cleanup
+        productService.deleteById(saved.getId());
+    }
+
+    @Test
     void testDeleteById() {
         Product product = new Product(
             null,
