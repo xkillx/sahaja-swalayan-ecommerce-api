@@ -8,4 +8,5 @@ import java.util.UUID;
 @Repository
 public interface ProductJpaRepository extends JpaRepository<Product, UUID> {
     // Add custom query methods if needed
+    java.util.Optional<Product> findByName(String name);
 }

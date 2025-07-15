@@ -19,6 +19,7 @@ import jakarta.persistence.Table;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@lombok.Builder
 public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

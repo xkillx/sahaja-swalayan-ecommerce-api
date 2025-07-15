@@ -1,6 +1,7 @@
 package com.sahaja.swalayan.ecommerce.application.service;
 
 import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
+import com.sahaja.swalayan.ecommerce.common.ProductNotFoundException;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Price;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Stock;
 import com.sahaja.swalayan.ecommerce.domain.service.ProductService;
@@ -9,13 +10,12 @@ import static org.assertj.core.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @SpringBootTest
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Transactional
 public class ProductServiceImplIntegrationTest {
 
     @Autowired
@@ -27,86 +27,109 @@ public class ProductServiceImplIntegrationTest {
     }
 
     @Test
-    void testSaveAndFindById() {
-        Product product = new Product(
-            null,
-            "Test Product",
-            "A test product",
-            new Price(java.math.BigDecimal.valueOf(10000)),
-            new Stock(10)
-        );
+    void testFindByName() {
+        Product product = Product.builder()
+            .id(null)
+            .name("Unique By Name")
+            .description("Desc")
+            .price(new Price(java.math.BigDecimal.valueOf(1234)))
+            .stock(new Stock(9))
+            .build();
         Product saved = productService.save(product);
-        Optional<Product> found = productService.findById(saved.getId());
-        assertThat(found).isPresent();
-        assertThat(found.get().getName()).isEqualTo("Test Product");
-        // remove product
-        productService.deleteById(saved.getId());
+        Product found = productService.findByName("Unique By Name");
+        assertThat(found.getId()).isEqualTo(saved.getId());
+        assertThat(found.getName()).isEqualTo("Unique By Name");
+    }
+
+    @Test
+    void testSaveAndFindById() {
+        Product product = Product.builder()
+            .id(null)
+            .name("Test Product")
+            .description("A test product")
+            .price(new Price(java.math.BigDecimal.valueOf(10000)))
+            .stock(new Stock(10))
+            .build();
+        Product saved = productService.save(product);
+        Product found = productService.findById(saved.getId());
+        assertThat(found.getName()).isEqualTo("Test Product");
     }
 
     @Test
     void testFindAll() {
-        Product product1 = new Product(
-            null,
-            "Product 1",
-            "Description 1",
-            new Price(java.math.BigDecimal.valueOf(5000)),
-            new Stock(5)
-        );
-        Product product2 = new Product(
-            null,
-            "Product 2",
-            "Description 2",
-            new Price(java.math.BigDecimal.valueOf(7000)),
-            new Stock(7)
-        );
+        Product product1 = Product.builder()
+            .id(null)
+            .name("Product 1")
+            .description("Description 1")
+            .price(new Price(java.math.BigDecimal.valueOf(5000)))
+            .stock(new Stock(5))
+            .build();
+        Product product2 = Product.builder()
+            .id(null)
+            .name("Product 2")
+            .description("Description 2")
+            .price(new Price(java.math.BigDecimal.valueOf(7000)))
+            .stock(new Stock(7))
+            .build();
         productService.save(product1);
         productService.save(product2);
         List<Product> products = productService.findAll();
         assertThat(products).hasSize(2);
-        // remove products
-        productService.deleteById(product1.getId());
-        productService.deleteById(product2.getId());
     }
 
     @Test
     void testUpdateProduct() {
-        Product product = new Product(
-            null,
-            "Original Name",
-            "Original Description",
-            new Price(java.math.BigDecimal.valueOf(2000)),
-            new Stock(2)
-        );
+        Product product = Product.builder()
+            .id(null)
+            .name("Original Name")
+            .description("Original Description")
+            .price(new Price(java.math.BigDecimal.valueOf(2000)))
+            .stock(new Stock(2))
+            .build();
         Product saved = productService.save(product);
 
-        Product updatedData = new Product(
-            null,
-            "Updated Name",
-            "Updated Description",
-            new Price(java.math.BigDecimal.valueOf(3000)),
-            new Stock(5)
-        );
+        Product updatedData = Product.builder()
+            .id(null)
+            .name("Updated Name")
+            .description("Updated Description")
+            .price(new Price(java.math.BigDecimal.valueOf(3000)))
+            .stock(new Stock(5))
+            .build();
         Product updated = productService.update(saved.getId(), updatedData);
         assertThat(updated.getName()).isEqualTo("Updated Name");
         assertThat(updated.getDescription()).isEqualTo("Updated Description");
         assertThat(updated.getPrice().getValue()).isEqualByComparingTo("3000");
         assertThat(updated.getStock().getValue()).isEqualTo(5);
-        // cleanup
-        productService.deleteById(saved.getId());
+    }
+
+    @Test
+    void testUpdateNonExistentProductThrowsException() {
+        java.util.UUID nonExistentId = java.util.UUID.randomUUID();
+        Product updatedData = Product.builder()
+            .id(null)
+            .name("Name")
+            .description("Description")
+            .price(new Price(java.math.BigDecimal.valueOf(1000)))
+            .stock(new Stock(1))
+            .build();
+        assertThatThrownBy(() -> productService.update(nonExistentId, updatedData))
+            .isInstanceOf(ProductNotFoundException.class)
+            .hasMessageContaining("Product not found with id: " + nonExistentId);
     }
 
     @Test
     void testDeleteById() {
-        Product product = new Product(
-            null,
-            "To Delete",
-            "Description to delete",
-            new Price(java.math.BigDecimal.valueOf(3000)),
-            new Stock(3)
-        );
+        Product product = Product.builder()
+            .id(null)
+            .name("To Delete")
+            .description("Description to delete")
+            .price(new Price(java.math.BigDecimal.valueOf(3000)))
+            .stock(new Stock(3))
+            .build();
         Product saved = productService.save(product);
         productService.deleteById(saved.getId());
-        Optional<Product> found = productService.findById(saved.getId());
-        assertThat(found).isNotPresent();
+        assertThatThrownBy(() -> productService.findById(saved.getId()))
+            .isInstanceOf(ProductNotFoundException.class)
+            .hasMessageContaining("Product not found with id: " + saved.getId());
     }
 }
