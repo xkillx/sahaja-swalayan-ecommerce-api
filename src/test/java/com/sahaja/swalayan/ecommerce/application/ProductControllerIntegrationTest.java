@@ -143,4 +143,20 @@ public class ProductControllerIntegrationTest {
         ResponseEntity<Void> response = restTemplate.exchange(getBaseUrl() + "/" + savedProduct.getId(), HttpMethod.DELETE, null, Void.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
+
+    @Test
+    void testCreateProductValidationErrors() {
+        // Create an invalid ProductDTO (blank name, negative price, null stock)
+        ProductDTO invalidProduct = ProductDTO.builder()
+            .name("") // blank name
+            .price(new BigDecimal("-1")) // negative price
+            .stock(null) // null stock
+            .build();
+
+        ResponseEntity<String> response = restTemplate.postForEntity(getBaseUrl(), invalidProduct, String.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).contains("Product name is required");
+        assertThat(response.getBody()).contains("Price must be greater than 0");
+        assertThat(response.getBody()).contains("Stock is required");
+    }
 }
