@@ -2,6 +2,10 @@ package com.sahaja.swalayan.ecommerce.application;
 
 import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
 import com.sahaja.swalayan.ecommerce.domain.service.ProductService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +20,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping(value = "/products")
+@Tag(name = "Product API", description = "Operations related to products")
 public class ProductController {
 
     private final ProductService productService;
@@ -28,6 +33,7 @@ public class ProductController {
     }
 
     @GetMapping
+    @Operation(summary = "Get all products")
     public ResponseEntity<List<ProductDTO>> getAllProducts() {
         List<Product> products = productService.findAll();
         List<ProductDTO> productDTOs = productMapper.toDtoList(products);
@@ -35,6 +41,7 @@ public class ProductController {
     }
 
     @GetMapping(value = "/{id}")
+    @Operation(summary = "Get product by ID")
     public ResponseEntity<ProductDTO> getProductById(@PathVariable UUID id) {
         Product product = productService.findById(id);
         ProductDTO productDTO = productMapper.toDto(product);
@@ -42,6 +49,7 @@ public class ProductController {
     }
 
     @PostMapping
+    @Operation(summary = "Create a new product")
     public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody ProductDTO productDTO) {
         Product product = productMapper.toEntity(productDTO);
         Product savedProduct = productService.save(product);
@@ -50,6 +58,7 @@ public class ProductController {
     }
 
     @PutMapping(value = "/{id}")
+    @Operation(summary = "Update an existing product")
     public ResponseEntity<ProductDTO> updateProduct(@PathVariable UUID id, @Valid @RequestBody ProductDTO productDTO) {
         Product product = productMapper.toEntity(productDTO);
         Product updatedProduct = productService.update(id, product);
@@ -58,12 +67,14 @@ public class ProductController {
     }
 
     @DeleteMapping(value = "/{id}")
+    @Operation(summary = "Delete a product")
     public ResponseEntity<Void> deleteProduct(@PathVariable UUID id) {
         productService.deleteById(id);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping(value = "/search")
+    @Operation(summary = "Search for a product by name")
     public ResponseEntity<ProductDTO> getProductByName(@RequestParam String name) {
         Product product = productService.findByName(name);
         ProductDTO productDTO = productMapper.toDto(product);
