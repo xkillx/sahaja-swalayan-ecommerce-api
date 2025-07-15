@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.ResponseEntity;
@@ -92,5 +94,53 @@ public class ProductControllerIntegrationTest {
         // delete products after test
         restTemplate.delete(getBaseUrl() + "/" + savedProduct1.getId());
         restTemplate.delete(getBaseUrl() + "/" + savedProduct2.getId());
+    }
+
+    // test update product
+    @Test
+    void testUpdateProduct() {
+        // save 1 product
+        ProductDTO product = ProductDTO.builder()
+            .name("Product 1")
+            .description("Description 1")
+            .price(new BigDecimal("19.99"))
+            .stock(10)
+            .build();
+        ProductDTO savedProduct = restTemplate.postForEntity(getBaseUrl(), product, ProductDTO.class).getBody();
+
+        // update product
+        ProductDTO updatedProduct = ProductDTO.builder()
+            .name("Updated Product 1")
+            .description("Updated Description 1")
+            .price(new BigDecimal("29.99"))
+            .stock(20)
+            .build();
+        ResponseEntity<ProductDTO> response = restTemplate.exchange(getBaseUrl() + "/" + savedProduct.getId(), HttpMethod.PUT, new HttpEntity<>(updatedProduct), ProductDTO.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getName()).isEqualTo("Updated Product 1");
+        assertThat(response.getBody().getDescription()).isEqualTo("Updated Description 1");
+        assertThat(response.getBody().getPrice()).isEqualTo(new BigDecimal("29.99"));
+        assertThat(response.getBody().getStock()).isEqualTo(20);
+
+        // delete product after test
+        restTemplate.delete(getBaseUrl() + "/" + savedProduct.getId());
+    }
+
+    // test delete product
+    @Test
+    void testDeleteProduct() {
+        // save 1 product
+        ProductDTO product = ProductDTO.builder()
+            .name("Product 1")
+            .description("Description 1")
+            .price(new BigDecimal("19.99"))
+            .stock(10)
+            .build();
+        ProductDTO savedProduct = restTemplate.postForEntity(getBaseUrl(), product, ProductDTO.class).getBody();
+
+        // delete product
+        ResponseEntity<Void> response = restTemplate.exchange(getBaseUrl() + "/" + savedProduct.getId(), HttpMethod.DELETE, null, Void.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
 }
