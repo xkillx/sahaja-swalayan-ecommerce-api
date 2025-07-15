@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @SpringBootTest
 @Transactional
@@ -104,7 +105,7 @@ public class ProductServiceImplIntegrationTest {
 
     @Test
     void testUpdateNonExistentProductThrowsException() {
-        java.util.UUID nonExistentId = java.util.UUID.randomUUID();
+        UUID nonExistentId = UUID.randomUUID();
         Product updatedData = Product.builder()
             .id(null)
             .name("Name")

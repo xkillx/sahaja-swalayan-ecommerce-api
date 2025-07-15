@@ -1,0 +1,70 @@
+package com.sahaja.swalayan.ecommerce.application;
+
+import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
+import com.sahaja.swalayan.ecommerce.domain.service.ProductService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+import com.sahaja.swalayan.ecommerce.application.dto.ProductDTO;
+import com.sahaja.swalayan.ecommerce.application.mapper.ProductMapper;
+
+@RestController
+@RequestMapping(value = "/products", produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+public class ProductController {
+
+    private final ProductService productService;
+    private final ProductMapper productMapper;
+
+    @Autowired
+    public ProductController(ProductService productService, ProductMapper productMapper) {
+        this.productService = productService;
+        this.productMapper = productMapper;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<ProductDTO>> getAllProducts() {
+        List<Product> products = productService.findAll();
+        List<ProductDTO> productDTOs = productMapper.toDtoList(products);
+        return ResponseEntity.ok(productDTOs);
+    }
+
+    @GetMapping(value = "/{id}", produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ProductDTO> getProductById(@PathVariable UUID id) {
+        Product product = productService.findById(id);
+        ProductDTO productDTO = productMapper.toDto(product);
+        return ResponseEntity.ok(productDTO);
+    }
+
+    @PostMapping(produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ProductDTO> createProduct(@RequestBody ProductDTO productDTO) {
+        Product product = productMapper.toEntity(productDTO);
+        Product savedProduct = productService.save(product);
+        ProductDTO savedProductDTO = productMapper.toDto(savedProduct);
+        return new ResponseEntity<>(savedProductDTO, HttpStatus.CREATED);
+    }
+
+    @PutMapping(value = "/{id}", produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ProductDTO> updateProduct(@PathVariable UUID id, @RequestBody ProductDTO productDTO) {
+        Product product = productMapper.toEntity(productDTO);
+        Product updatedProduct = productService.update(id, product);
+        ProductDTO updatedProductDTO = productMapper.toDto(updatedProduct);
+        return ResponseEntity.ok(updatedProductDTO);
+    }
+
+    @DeleteMapping(value = "/{id}", produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Void> deleteProduct(@PathVariable UUID id) {
+        productService.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping(value = "/search", produces = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ProductDTO> getProductByName(@RequestParam String name) {
+        Product product = productService.findByName(name);
+        ProductDTO productDTO = productMapper.toDto(product);
+        return ResponseEntity.ok(productDTO);
+    }
+}

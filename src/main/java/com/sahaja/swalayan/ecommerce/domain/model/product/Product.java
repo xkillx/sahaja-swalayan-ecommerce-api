@@ -1,6 +1,7 @@
 package com.sahaja.swalayan.ecommerce.domain.model.product;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,7 +20,7 @@ import jakarta.persistence.Table;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@lombok.Builder
+@Builder
 public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
