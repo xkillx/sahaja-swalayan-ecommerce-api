@@ -1,6 +1,6 @@
 package com.sahaja.swalayan.ecommerce.application.service;
 
-import com.sahaja.swalayan.ecommerce.common.ProductNotFoundException;
+import com.sahaja.swalayan.ecommerce.common.EntityNotFoundException;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
 import com.sahaja.swalayan.ecommerce.domain.service.ProductService;
 import com.sahaja.swalayan.ecommerce.domain.repository.ProductRepository;
@@ -28,7 +28,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Product findById(UUID id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new ProductNotFoundException("Product not found with id: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Product not found with id: " + id));
     }
 
     @Override
@@ -39,7 +39,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public void deleteById(UUID id) {
         if (productRepository.findById(id).isEmpty()) {
-            throw new ProductNotFoundException("Product not found with id: " + id);
+            throw new EntityNotFoundException("Product not found with id: " + id);
         }
         productRepository.deleteById(id);
     }
@@ -47,7 +47,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Product update(UUID id, Product product) {
         Product existing = productRepository.findById(id)
-                .orElseThrow(() -> new ProductNotFoundException("Product not found with id: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Product not found with id: " + id));
         existing.setName(product.getName());
         existing.setDescription(product.getDescription());
         existing.setPrice(product.getPrice());
@@ -58,6 +58,6 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Product findByName(String name) {
         return productRepository.findByName(name)
-                .orElseThrow(() -> new ProductNotFoundException("Product not found with name: " + name));
+                .orElseThrow(() -> new EntityNotFoundException("Product not found with name: " + name));
     }
 }

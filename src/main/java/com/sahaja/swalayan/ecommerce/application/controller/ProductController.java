@@ -1,6 +1,8 @@
-package com.sahaja.swalayan.ecommerce.application;
+package com.sahaja.swalayan.ecommerce.application.controller;
 
 import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
+import com.sahaja.swalayan.ecommerce.domain.model.product.Category;
+import com.sahaja.swalayan.ecommerce.domain.service.CategoryService;
 import com.sahaja.swalayan.ecommerce.domain.service.ProductService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,11 +27,13 @@ public class ProductController {
 
     private final ProductService productService;
     private final ProductMapper productMapper;
+    private final CategoryService categoryService;
 
     @Autowired
-    public ProductController(ProductService productService, ProductMapper productMapper) {
+    public ProductController(ProductService productService, ProductMapper productMapper, CategoryService categoryService) {
         this.productService = productService;
         this.productMapper = productMapper;
+        this.categoryService = categoryService;
     }
 
     @GetMapping
@@ -52,6 +56,8 @@ public class ProductController {
     @Operation(summary = "Create a new product")
     public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody ProductDTO productDTO) {
         Product product = productMapper.toEntity(productDTO);
+        Category category = categoryService.findById(productDTO.getCategoryId());
+        product.setCategory(category);
         Product savedProduct = productService.save(product);
         ProductDTO savedProductDTO = productMapper.toDto(savedProduct);
         return new ResponseEntity<>(savedProductDTO, HttpStatus.CREATED);
