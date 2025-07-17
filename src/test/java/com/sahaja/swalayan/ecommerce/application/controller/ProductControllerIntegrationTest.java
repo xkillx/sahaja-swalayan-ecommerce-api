@@ -185,8 +185,40 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
+    void testCreateProductWithInvalidCategory() {
+        // Use a random UUID for categoryId that does not exist
+        UUID invalidCategoryId = UUID.randomUUID();
+        ProductDTO product = ProductDTO.builder()
+                .name("Product Invalid Category")
+                .description("Should fail")
+                .price(new BigDecimal("10.00"))
+                .stock(5)
+                .categoryId(invalidCategoryId)
+                .build();
+
+        ResponseEntity<String> response = restTemplate.postForEntity(getBaseUrl(), product, String.class);
+        // Acceptable: BAD_REQUEST or NOT_FOUND depending on implementation
+        assertThat(response.getStatusCode().is4xxClientError()).isTrue();
+        assertThat(response.getBody()).containsIgnoringCase("category");
+    }
+
+    @Test
+    void testCreateProductWithMalformedJson() {
+        // Intentionally malformed JSON (missing closing brace)
+        String malformedJson = "{\"name\": \"Bad Product\", \"price\": 10.00, ";
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.set("Content-Type", "application/json");
+        HttpEntity<String> request = new HttpEntity<>(malformedJson, headers);
+        ResponseEntity<String> response = restTemplate.postForEntity(getBaseUrl(), request, String.class);
+        assertThat(response.getStatusCode().is4xxClientError()).isTrue();
+        // The exact error message may vary depending on your exception handler
+        assertThat(response.getBody()).containsIgnoringCase("malformed");
+    }
+
+    @Test
     void testCreateProductValidationErrors() {
-        // Create an invalid ProductDTO (blank name, negative price, null stock)
+        // Create an invalid ProductDTO (blank name, negative price, null stock, null
+        // category)
         ProductDTO invalidProduct = ProductDTO.builder()
                 .name("") // blank name
                 .price(new BigDecimal("-1")) // negative price
@@ -196,7 +228,14 @@ public class ProductControllerIntegrationTest {
 
         ResponseEntity<String> response = restTemplate.postForEntity(getBaseUrl(), invalidProduct, String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).contains("Product name is required");
-        assertThat(response.getBody()).contains("Price must be greater than 0");
+        String responseBody = response.getBody();
+        // Assert all expected validation error messages are present
+        assertThat(responseBody).contains("Product name is required");
+        assertThat(responseBody).contains("Price must be greater than 0");
+        assertThat(responseBody).contains("Stock is required");
+        assertThat(responseBody).contains("Category is required");
+        // Optionally, check that no unexpected errors are present (if your API returns
+        // just these messages)
+        // Example: assertThat(responseBody).doesNotContain("Unexpected error");
     }
 }
