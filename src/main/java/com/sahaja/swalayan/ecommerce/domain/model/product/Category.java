@@ -6,6 +6,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.util.UUID;
+
+import com.sahaja.swalayan.ecommerce.domain.model.AuditableEntity;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -21,7 +24,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Category {
+public class Category extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -29,4 +32,5 @@ public class Category {
     @Size(max = 255, message = "Category name must not exceed 255 characters")
     private String name;
     private String description;
+
 }

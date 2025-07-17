@@ -8,6 +8,8 @@ import lombok.Setter;
 
 import java.util.UUID;
 
+import com.sahaja.swalayan.ecommerce.domain.model.AuditableEntity;
+
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.JoinColumn;
 
@@ -28,7 +30,7 @@ import jakarta.validation.constraints.Size;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Product {
+public class Product extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
@@ -48,5 +50,6 @@ public class Product {
     @JoinColumn(name = "category_id")
     @NotNull(message = "Product category must not be null")
     Category category;
+
 }
 

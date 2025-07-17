@@ -2,7 +2,11 @@
 CREATE TABLE category (
     id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    description TEXT
+    description TEXT,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255)
 );
 
 -- Add category_id to product and set up foreign key
