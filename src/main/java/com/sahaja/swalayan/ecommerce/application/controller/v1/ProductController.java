@@ -21,7 +21,7 @@ import com.sahaja.swalayan.ecommerce.application.mapper.ProductMapper;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping(value = "/products")
+@RequestMapping(value = "/v1/products")
 @Tag(name = "Product API", description = "Operations related to products")
 public class ProductController {
 

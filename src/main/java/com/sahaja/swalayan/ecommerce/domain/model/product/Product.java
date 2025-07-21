@@ -24,7 +24,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 @Entity
-@Table(name = "product")
+@Table(name = "products")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -50,6 +50,4 @@ public class Product extends AuditableEntity {
     @JoinColumn(name = "category_id")
     @NotNull(message = "Product category must not be null")
     Category category;
-
 }
-

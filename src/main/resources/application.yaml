@@ -29,3 +29,23 @@ spring:
         use_sql_comments: true
         highlight_sql: true
         type: trace
+
+# Email Configuration
+email:
+  provider: ${EMAIL_PROVIDER:mailtrap}  # Options: mailtrap, sendgrid, ses, smtp
+  from:
+    address: ${EMAIL_FROM_ADDRESS:noreply@sahajaswalayan.com}
+    name: ${EMAIL_FROM_NAME:Sahaja Swalayan}
+
+# Mailtrap Email Configuration
+mailtrap:
+  api:
+    token: ${MAILTRAP_API_TOKEN:be6c841a60f2b9d55b25c3561ac05db9}
+  sandbox:
+    enabled: ${MAILTRAP_SANDBOX_ENABLED:true}
+    inbox-id: ${MAILTRAP_SANDBOX_INBOX_ID:3906683}
+
+# Application Configuration
+app:
+  confirmation:
+    base-url: ${APP_CONFIRMATION_BASE_URL:http://localhost:8080/api/v1/auth/confirm}

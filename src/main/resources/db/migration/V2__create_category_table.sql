@@ -1,5 +1,5 @@
 -- Create Category table
-CREATE TABLE category (
+CREATE TABLE categories (
     id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -10,6 +10,6 @@ CREATE TABLE category (
 );
 
 -- Add category_id to product and set up foreign key
-ALTER TABLE product ADD COLUMN category_id UUID;
-ALTER TABLE product ADD CONSTRAINT fk_product_category FOREIGN KEY (category_id)
-    REFERENCES category(id) ON DELETE SET NULL;
+ALTER TABLE products ADD COLUMN category_id UUID;
+ALTER TABLE products ADD CONSTRAINT fk_product_category FOREIGN KEY (category_id)
+    REFERENCES categories(id) ON DELETE SET NULL;

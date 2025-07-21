@@ -30,7 +30,7 @@ public class ProductControllerIntegrationTest {
     @BeforeAll
     void setUpCategory() {
         // Create category
-        String categoryUrl = "http://localhost:" + port + "/api/categories";
+        String categoryUrl = "http://localhost:" + port + "/api/v1/categories";
         CategoryDTO categoryDTO = CategoryDTO.builder()
                 .name(testCategoryName)
                 .description("Test Category Desc")
@@ -45,7 +45,7 @@ public class ProductControllerIntegrationTest {
     void tearDownCategory() {
         // Delete category
         if (testCategoryId != null) {
-            String deleteUrl = "http://localhost:" + port + "/api/categories/" + testCategoryId;
+            String deleteUrl = "http://localhost:" + port + "/api/v1/categories/" + testCategoryId;
             restTemplate.delete(deleteUrl);
         }
     }
@@ -57,7 +57,7 @@ public class ProductControllerIntegrationTest {
     private TestRestTemplate restTemplate;
 
     private String getBaseUrl() {
-        return "http://localhost:" + port + "/api/products";
+        return "http://localhost:" + port + "/api/v1/products";
     }
 
     @Test

@@ -38,6 +38,30 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(EmailAlreadyRegisteredException.class)
+    public ResponseEntity<ErrorResponse> handleEmailAlreadyRegisteredException(EmailAlreadyRegisteredException ex, WebRequest request) {
+        log.error("Email Already Registered: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                ex.getMessage(),
+                request.getDescription(false).replace("uri=", ""));
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(InvalidConfirmationTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidConfirmationTokenException(InvalidConfirmationTokenException ex, WebRequest request) {
+        log.error("Invalid Confirmation Token: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                ex.getMessage(),
+                request.getDescription(false).replace("uri=", ""));
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleMalformedJson(org.springframework.http.converter.HttpMessageNotReadableException ex, WebRequest request) {
         log.error("Malformed JSON: {}", ex.getMessage());

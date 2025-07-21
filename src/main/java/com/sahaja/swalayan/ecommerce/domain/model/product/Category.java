@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "category")
+@Table(name = "categories")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,5 +32,4 @@ public class Category extends AuditableEntity {
     @Size(max = 255, message = "Category name must not exceed 255 characters")
     private String name;
     private String description;
-
 }

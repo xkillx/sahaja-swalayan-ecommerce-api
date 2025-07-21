@@ -22,7 +22,7 @@ public class CategoryControllerIntegrationTest {
     private TestRestTemplate restTemplate;
 
     private String getBaseUrl() {
-        return "http://localhost:" + port + "/api/categories";
+        return "http://localhost:" + port + "/api/v1/categories";
     }
 
     @Test
