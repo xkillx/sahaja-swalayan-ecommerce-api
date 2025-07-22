@@ -1,10 +1,22 @@
 package com.sahaja.swalayan.ecommerce.application.controller.v1;
 
+import java.util.HashMap;
+import java.util.List;
+
 import com.sahaja.swalayan.ecommerce.application.dto.ApiResponse;
 import com.sahaja.swalayan.ecommerce.application.dto.ConfirmResponse;
 import com.sahaja.swalayan.ecommerce.application.dto.RegisterRequest;
 import com.sahaja.swalayan.ecommerce.application.dto.RegisterResponse;
+import com.sahaja.swalayan.ecommerce.application.dto.LoginRequest;
+import com.sahaja.swalayan.ecommerce.application.dto.LoginResponse;
+import com.sahaja.swalayan.ecommerce.common.CustomUserDetails;
+import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import com.sahaja.swalayan.ecommerce.domain.service.AuthService;
+import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiAuthResponses;
 import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiConfirmationOperation;
 import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiRegistrationOperation;
 import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiSuccessResponseWithExample;
@@ -19,9 +31,59 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     
     private final AuthService authService;
-    
-    public AuthController(AuthService authService) {
+    private final AuthenticationManager authenticationManager;
+    private final JwtTokenUtil jwtTokenUtil;
+
+    public AuthController(AuthService authService, AuthenticationManager authenticationManager, JwtTokenUtil jwtTokenUtil) {
         this.authService = authService;
+        this.authenticationManager = authenticationManager;
+        this.jwtTokenUtil = jwtTokenUtil;
+    }
+
+    @PostMapping("/login")
+    @ApiAuthResponses
+    @ApiSuccessResponseWithExample(
+        description = "User logged in successfully",
+        exampleName = "Login Success",
+        example = """
+        {
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
+          "tokenType": "Bearer"
+        }
+        """
+    )
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+            );
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            // Extract CustomUserDetails
+            var principal = authentication.getPrincipal();
+            if (!(principal instanceof CustomUserDetails customUserDetails)) {
+                throw new IllegalStateException("Unexpected principal type");
+            }
+
+            // Check user status
+            if (!customUserDetails.isEnabled()) {
+                return ResponseEntity.status(403).body(
+                    new LoginResponse(null, "User account is not active. Please confirm your email before logging in.")
+                );
+            }
+
+            var claims = new HashMap<String, Object>();
+            claims.put("userId", customUserDetails.getId().toString());
+            claims.put("email", customUserDetails.getEmail());
+            claims.put("roles", List.of(customUserDetails.getRole()));
+
+            String token = jwtTokenUtil.generateToken(customUserDetails.getUsername(), claims);
+            return ResponseEntity.ok(new LoginResponse(token));
+        } catch (org.springframework.security.authentication.BadCredentialsException ex) {
+            return ResponseEntity.status(401).body(new LoginResponse(null, "Bad credentials"));
+        } catch (org.springframework.security.authentication.DisabledException ex) {
+            return ResponseEntity.status(403).body(new LoginResponse(null, "User account is not active. Please confirm your email before logging in."));
+        }
     }
     
     @PostMapping("/register")

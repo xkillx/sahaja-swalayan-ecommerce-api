@@ -4,6 +4,8 @@ import com.sahaja.swalayan.ecommerce.application.dto.ApiResponse;
 import com.sahaja.swalayan.ecommerce.application.dto.RegisterRequest;
 import com.sahaja.swalayan.ecommerce.application.dto.RegisterResponse;
 import com.sahaja.swalayan.ecommerce.application.dto.ConfirmResponse;
+import com.sahaja.swalayan.ecommerce.application.dto.LoginRequest;
+
 import com.sahaja.swalayan.ecommerce.domain.model.user.User;
 import com.sahaja.swalayan.ecommerce.domain.model.user.UserStatus;
 import com.sahaja.swalayan.ecommerce.domain.repository.ConfirmationTokenRepository;
@@ -340,5 +342,77 @@ public class AuthControllerIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         return headers;
+    }
+
+    @Test
+    @DisplayName("Should successfully login after confirmation")
+    void testLoginSuccessAfterConfirmation() {
+        // Register and confirm user
+        RegisterRequest register = createValidRegisterRequest();
+        restTemplate.exchange(getBaseUrl() + "/register", HttpMethod.POST, new HttpEntity<>(register, createJsonHeaders()), new ParameterizedTypeReference<ApiResponse<RegisterResponse>>() {});
+        User user = userRepository.findByEmail(register.getEmail()).orElseThrow();
+        String token = confirmationTokenRepository.findValidTokenByUserId(user.getId(), LocalDateTime.now()).orElseThrow().getToken();
+        restTemplate.exchange(getBaseUrl() + "/confirm?token=" + token, HttpMethod.GET, null, new ParameterizedTypeReference<ApiResponse<ConfirmResponse>>() {});
+
+        // Login
+        LoginRequest login = new LoginRequest(register.getEmail(), register.getPassword());
+        ResponseEntity<String> loginResponse = restTemplate.exchange(
+                getBaseUrl() + "/login",
+                HttpMethod.POST,
+                new HttpEntity<>(login, createJsonHeaders()),
+                String.class);
+        assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(loginResponse.getBody()).contains("token");
+        assertThat(loginResponse.getBody()).contains("Bearer");
+
+        // Cleanup
+        userRepository.deleteById(user.getId());
+    }
+
+    @Test
+    @DisplayName("Should forbid login if email not confirmed")
+    void testLoginForbiddenIfNotConfirmed() {
+        // Register user but do not confirm
+        RegisterRequest register = createValidRegisterRequest();
+        restTemplate.exchange(getBaseUrl() + "/register", HttpMethod.POST, new HttpEntity<>(register, createJsonHeaders()), new ParameterizedTypeReference<ApiResponse<RegisterResponse>>() {});
+        User user = userRepository.findByEmail(register.getEmail()).orElseThrow();
+
+        // Try login
+        LoginRequest login = new LoginRequest(register.getEmail(), register.getPassword());
+        ResponseEntity<String> loginResponse = restTemplate.exchange(
+                getBaseUrl() + "/login",
+                HttpMethod.POST,
+                new HttpEntity<>(login, createJsonHeaders()),
+                String.class);
+        assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(loginResponse.getBody()).contains("not active");
+        assertThat(loginResponse.getBody()).contains("confirm your email");
+
+        // Cleanup
+        userRepository.deleteById(user.getId());
+    }
+
+    @Test
+    @DisplayName("Should return unauthorized for invalid password")
+    void testLoginUnauthorizedInvalidPassword() {
+        // Register and confirm user
+        RegisterRequest register = createValidRegisterRequest();
+        restTemplate.exchange(getBaseUrl() + "/register", HttpMethod.POST, new HttpEntity<>(register, createJsonHeaders()), new ParameterizedTypeReference<ApiResponse<RegisterResponse>>() {});
+        User user = userRepository.findByEmail(register.getEmail()).orElseThrow();
+        String token = confirmationTokenRepository.findValidTokenByUserId(user.getId(), LocalDateTime.now()).orElseThrow().getToken();
+        restTemplate.exchange(getBaseUrl() + "/confirm?token=" + token, HttpMethod.GET, null, new ParameterizedTypeReference<ApiResponse<ConfirmResponse>>() {});
+
+        // Try login with wrong password
+        LoginRequest login = new LoginRequest(register.getEmail(), "wrongpassword");
+        ResponseEntity<String> loginResponse = restTemplate.exchange(
+                getBaseUrl() + "/login",
+                HttpMethod.POST,
+                new HttpEntity<>(login, createJsonHeaders()),
+                String.class);
+        assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(loginResponse.getBody()).contains("Bad credentials");
+
+        // Cleanup
+        userRepository.deleteById(user.getId());
     }
 }

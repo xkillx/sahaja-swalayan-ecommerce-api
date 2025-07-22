@@ -12,6 +12,8 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -25,8 +27,18 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Bean
+    public com.sahaja.swalayan.ecommerce.common.CustomUserDetailsService customUserDetailsService(com.sahaja.swalayan.ecommerce.domain.repository.UserRepository userRepository) {
+        return new com.sahaja.swalayan.ecommerce.common.CustomUserDetailsService(userRepository);
+    }
+
+    @Bean
     public BCryptPasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+        return authenticationConfiguration.getAuthenticationManager();
     }
 
     @Bean
@@ -61,6 +73,7 @@ public class SecurityConfig {
                 // Public endpoints - Authentication/Registration
                 .requestMatchers(HttpMethod.POST, "/v1/auth/register").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/auth/confirm").permitAll()
+                .requestMatchers(HttpMethod.POST, "/v1/auth/login").permitAll()
                 
                 // Public endpoints - Product and Category APIs
                 .requestMatchers("/v1/products/**").permitAll()

@@ -37,6 +37,11 @@ email:
     address: ${EMAIL_FROM_ADDRESS:noreply@sahajaswalayan.com}
     name: ${EMAIL_FROM_NAME:Sahaja Swalayan}
 
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:mySecretKey12345678901234567890123456789012}
+  expiration: ${JWT_EXPIRATION:86400000} # 1 day in milliseconds
+
 # Mailtrap Email Configuration
 mailtrap:
   api:
