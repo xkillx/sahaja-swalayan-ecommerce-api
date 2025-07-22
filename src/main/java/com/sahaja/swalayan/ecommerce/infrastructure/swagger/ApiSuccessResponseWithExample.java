@@ -3,6 +3,7 @@ package com.sahaja.swalayan.ecommerce.infrastructure.swagger;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import org.springframework.core.annotation.AliasFor;
 import org.springframework.http.MediaType;
 
 import java.lang.annotation.ElementType;
@@ -30,6 +31,7 @@ public @interface ApiSuccessResponseWithExample {
      * Custom description for the success response.
      * @return the response description
      */
+    @AliasFor(annotation = ApiResponse.class, attribute = "description")
     String description() default "Operation completed successfully";
     
     /**
