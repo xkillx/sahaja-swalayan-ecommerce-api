@@ -101,9 +101,9 @@ public class JwtTokenUtil {
      */
     public Claims getAllClaimsFromToken(String token) {
         return Jwts.parser()
-                .verifyWith(secretKey) // new fluent API, replaces setSigningKey
+                .verifyWith(secretKey)
                 .build()
-                .parseSignedClaims(token) // new name for parseClaimsJws
-                .getPayload(); // getBody → getPayload
-    }
+                .parseSignedClaims(token)
+                .getPayload();
+}
 }

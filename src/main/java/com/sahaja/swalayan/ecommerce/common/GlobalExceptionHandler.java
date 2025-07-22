@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
+import io.jsonwebtoken.JwtException;
+
 import java.time.LocalDateTime;
 
 @RestControllerAdvice
@@ -58,6 +60,18 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST.value(),
                 HttpStatus.BAD_REQUEST.getReasonPhrase(),
                 ex.getMessage(),
+                request.getDescription(false).replace("uri=", ""));
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ErrorResponse> handleJwtException(JwtException ex, WebRequest request) {
+        log.error("Invalid JWT token: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "Invalid JWT token",
                 request.getDescription(false).replace("uri=", ""));
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
