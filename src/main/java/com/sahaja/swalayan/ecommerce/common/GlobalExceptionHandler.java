@@ -13,8 +13,6 @@ import org.springframework.web.context.request.WebRequest;
 
 import io.jsonwebtoken.JwtException;
 
-import java.time.LocalDateTime;
-
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
