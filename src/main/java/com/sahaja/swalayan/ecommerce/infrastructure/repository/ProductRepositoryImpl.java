@@ -40,4 +40,9 @@ public class ProductRepositoryImpl implements ProductRepository {
     public Optional<Product> findByName(String name) {
         return jpaRepository.findByName(name);
     }
+
+    @Override
+    public void delete(Product product) {
+        jpaRepository.delete(product);
+    }
 }

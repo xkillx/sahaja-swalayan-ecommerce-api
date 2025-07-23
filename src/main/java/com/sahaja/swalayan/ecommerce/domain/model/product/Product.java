@@ -41,9 +41,11 @@ public class Product extends AuditableEntity {
     String description;
 
     @Valid
+    @NotNull(message = "Product price must not be null")
     Price price;
 
     @Valid
+    @NotNull(message = "Product stock must not be null")
     Stock stock;
 
     @ManyToOne

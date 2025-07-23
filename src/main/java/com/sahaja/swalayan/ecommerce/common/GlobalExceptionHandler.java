@@ -1,5 +1,7 @@
 package com.sahaja.swalayan.ecommerce.common;
 
+import com.sahaja.swalayan.ecommerce.application.dto.ApiResponse;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,79 +19,63 @@ import java.time.LocalDateTime;
 @Slf4j
 public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleAllExceptions(Exception ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<?>> handleAllExceptions(Exception ex, WebRequest request) {
         log.error("Exception: {}", ex.getMessage());
-        ErrorResponse error = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
-                ex.getMessage(),
-                request.getDescription(false).replace("uri=", ""));
+        ApiResponse<?> error = ApiResponse.error("An unexpected error occurred: " + ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleEntityNotFoundException(EntityNotFoundException ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<?>> handleEntityNotFoundException(EntityNotFoundException ex, WebRequest request) {
         log.error("Entity Not Found: {}", ex.getMessage());
-        ErrorResponse error = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.NOT_FOUND.value(),
-                HttpStatus.NOT_FOUND.getReasonPhrase(),
-                ex.getMessage(),
-                request.getDescription(false).replace("uri=", ""));
+        ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler({ProductNotFoundException.class, CartItemNotFoundException.class, CartNotFoundException.class})
+    public ResponseEntity<ApiResponse<?>> handleCartRelatedNotFound(RuntimeException ex, WebRequest request) {
+        log.error("Cart Related Not Found: {}", ex.getMessage());
+        ApiResponse<?> error = ApiResponse.error(ex.getMessage());
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(InsufficientStockException.class)
+    public ResponseEntity<ApiResponse<?>> handleInsufficientStock(InsufficientStockException ex, WebRequest request) {
+        log.error("Insufficient Stock: {}", ex.getMessage());
+        ApiResponse<?> error = ApiResponse.error(ex.getMessage());
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(EmailAlreadyRegisteredException.class)
-    public ResponseEntity<ErrorResponse> handleEmailAlreadyRegisteredException(EmailAlreadyRegisteredException ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<?>> handleEmailAlreadyRegisteredException(EmailAlreadyRegisteredException ex, WebRequest request) {
         log.error("Email Already Registered: {}", ex.getMessage());
-        ErrorResponse error = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.CONFLICT.value(),
-                HttpStatus.CONFLICT.getReasonPhrase(),
-                ex.getMessage(),
-                request.getDescription(false).replace("uri=", ""));
+        ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(InvalidConfirmationTokenException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidConfirmationTokenException(InvalidConfirmationTokenException ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<?>> handleInvalidConfirmationTokenException(InvalidConfirmationTokenException ex, WebRequest request) {
         log.error("Invalid Confirmation Token: {}", ex.getMessage());
-        ErrorResponse error = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                ex.getMessage(),
-                request.getDescription(false).replace("uri=", ""));
+        ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(JwtException.class)
-    public ResponseEntity<ErrorResponse> handleJwtException(JwtException ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<?>> handleJwtException(JwtException ex, WebRequest request) {
         log.error("Invalid JWT token: {}", ex.getMessage());
-        ErrorResponse error = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                "Invalid JWT token",
-                request.getDescription(false).replace("uri=", ""));
+        ApiResponse<?> error = ApiResponse.error("Invalid JWT token");
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleMalformedJson(org.springframework.http.converter.HttpMessageNotReadableException ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<?>> handleMalformedJson(org.springframework.http.converter.HttpMessageNotReadableException ex, WebRequest request) {
         log.error("Malformed JSON: {}", ex.getMessage());
-        ErrorResponse error = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                "Malformed JSON request",
-                request.getDescription(false).replace("uri=", ""));
+        ApiResponse<?> error = ApiResponse.error("Malformed JSON request");
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex,
+    public ResponseEntity<ApiResponse<?>> handleValidationExceptions(MethodArgumentNotValidException ex,
             WebRequest request) {
         StringBuilder errorMessages = new StringBuilder();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
@@ -101,12 +87,7 @@ public class GlobalExceptionHandler {
         if (message.endsWith(";")) {
             message = message.substring(0, message.length() - 1);
         }
-        ErrorResponse errorResponse = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                message,
-                request.getDescription(false).replace("uri=", ""));
-        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+        ApiResponse<?> error = ApiResponse.error(message);
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 }

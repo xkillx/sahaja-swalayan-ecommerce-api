@@ -1,5 +1,7 @@
 package com.sahaja.swalayan.ecommerce.domain.model.product;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Value;
 import jakarta.validation.constraints.Min;
 

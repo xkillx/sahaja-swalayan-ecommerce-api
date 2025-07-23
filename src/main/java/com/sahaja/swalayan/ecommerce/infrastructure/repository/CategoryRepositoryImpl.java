@@ -40,4 +40,9 @@ public class CategoryRepositoryImpl implements CategoryRepository {
     public Optional<Category> findByName(String name) {
         return jpaRepository.findByName(name);
     }
+
+    @Override
+    public void delete(Category category) {
+        jpaRepository.delete(category);
+    }
 }
