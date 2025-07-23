@@ -1,5 +1,0 @@
-logging:
-  level:
-    com.sahaja.swalayan.ecommerce.application.service.CartServiceImpl: DEBUG
-# Optionally, set root logger to DEBUG for all logs
-#   root: DEBUG
