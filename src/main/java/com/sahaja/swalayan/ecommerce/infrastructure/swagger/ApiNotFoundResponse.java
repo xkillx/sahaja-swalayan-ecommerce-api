@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.http.MediaType;
+import org.springframework.core.annotation.AliasFor;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -35,10 +36,5 @@ import java.lang.annotation.Target;
     )
 )
 public @interface ApiNotFoundResponse {
-    
-    /**
-     * Custom description for the not found response.
-     * @return the response description
-     */
-    String description() default "Resource not found";
 }
+
