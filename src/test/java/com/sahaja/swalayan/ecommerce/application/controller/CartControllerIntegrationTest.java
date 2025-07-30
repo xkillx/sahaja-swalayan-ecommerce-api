@@ -6,9 +6,7 @@ import com.sahaja.swalayan.ecommerce.application.dto.UpdateCartItemRequest;
 import com.sahaja.swalayan.ecommerce.domain.model.cart.Cart;
 import com.sahaja.swalayan.ecommerce.domain.model.cart.CartItem;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
-import com.sahaja.swalayan.ecommerce.domain.model.product.Stock;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Category;
-import com.sahaja.swalayan.ecommerce.domain.model.product.Price;
 import com.sahaja.swalayan.ecommerce.domain.model.user.User;
 import com.sahaja.swalayan.ecommerce.domain.model.user.UserRole;
 import com.sahaja.swalayan.ecommerce.domain.model.user.UserStatus;
@@ -80,8 +78,8 @@ class CartControllerIntegrationTest {
         // Setup product
         product = Product.builder()
                 .name("Product1")
-                .stock(new Stock(10))
-                .price(new Price(new BigDecimal(10000)))
+                .stock(10)
+                .price(new BigDecimal(10000))
                 .category(category)
                 .build();
         productRepository.save(product);

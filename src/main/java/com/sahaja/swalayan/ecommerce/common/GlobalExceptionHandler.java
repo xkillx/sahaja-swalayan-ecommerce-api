@@ -5,6 +5,7 @@ import com.sahaja.swalayan.ecommerce.application.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -23,53 +24,54 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<ApiResponse<?>> handleEntityNotFoundException(EntityNotFoundException ex, WebRequest request) {
-        log.error("Entity Not Found: {}", ex.getMessage());
+    // Handle all NOT_FOUND exceptions
+    @ExceptionHandler({
+        EntityNotFoundException.class,
+        ProductNotFoundException.class,
+        CartItemNotFoundException.class,
+        CartNotFoundException.class
+    })
+    public ResponseEntity<ApiResponse<?>> handleNotFound(RuntimeException ex, WebRequest request) {
+        log.error("Not Found: {}", ex.getMessage());
         ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
     }
 
-    @ExceptionHandler({ProductNotFoundException.class, CartItemNotFoundException.class, CartNotFoundException.class})
-    public ResponseEntity<ApiResponse<?>> handleCartRelatedNotFound(RuntimeException ex, WebRequest request) {
-        log.error("Cart Related Not Found: {}", ex.getMessage());
-        ApiResponse<?> error = ApiResponse.error(ex.getMessage());
-        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<?>> handleMalformedJson(HttpMessageNotReadableException ex, WebRequest request) {
+        log.error("Malformed JSON request: {}", ex.getMessage());
+        String message = "Malformed JSON request: " + ex.getMostSpecificCause().getMessage();
+        ApiResponse<?> error = ApiResponse.error(message);
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
-    @ExceptionHandler(InsufficientStockException.class)
-    public ResponseEntity<ApiResponse<?>> handleInsufficientStock(InsufficientStockException ex, WebRequest request) {
-        log.error("Insufficient Stock: {}", ex.getMessage());
+    // Handle all BAD_REQUEST exceptions
+    @ExceptionHandler({
+        InsufficientStockException.class,
+        InvalidConfirmationTokenException.class,
+        InvalidPaymentMethodException.class,
+        JwtException.class
+    })
+    public ResponseEntity<ApiResponse<?>> handleBadRequest(Exception ex, WebRequest request) {
+        log.error("Bad Request ({}): {}", ex.getClass().getSimpleName(), ex.getMessage());
         ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+    // Handle CONFLICT
     @ExceptionHandler(EmailAlreadyRegisteredException.class)
-    public ResponseEntity<ApiResponse<?>> handleEmailAlreadyRegisteredException(EmailAlreadyRegisteredException ex, WebRequest request) {
-        log.error("Email Already Registered: {}", ex.getMessage());
+    public ResponseEntity<ApiResponse<?>> handleConflict(EmailAlreadyRegisteredException ex, WebRequest request) {
+        log.error("Conflict: {}", ex.getMessage());
         ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
-    @ExceptionHandler(InvalidConfirmationTokenException.class)
-    public ResponseEntity<ApiResponse<?>> handleInvalidConfirmationTokenException(InvalidConfirmationTokenException ex, WebRequest request) {
-        log.error("Invalid Confirmation Token: {}", ex.getMessage());
+    // Handle FORBIDDEN
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiResponse<?>> handleForbidden(ForbiddenException ex, WebRequest request) {
+        log.error("Forbidden: {}", ex.getMessage());
         ApiResponse<?> error = ApiResponse.error(ex.getMessage());
-        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
-    }
-
-    @ExceptionHandler(JwtException.class)
-    public ResponseEntity<ApiResponse<?>> handleJwtException(JwtException ex, WebRequest request) {
-        log.error("Invalid JWT token: {}", ex.getMessage());
-        ApiResponse<?> error = ApiResponse.error("Invalid JWT token");
-        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
-    }
-
-    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<?>> handleMalformedJson(org.springframework.http.converter.HttpMessageNotReadableException ex, WebRequest request) {
-        log.error("Malformed JSON: {}", ex.getMessage());
-        ApiResponse<?> error = ApiResponse.error("Malformed JSON request");
-        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

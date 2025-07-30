@@ -61,12 +61,8 @@ public class CartServiceImpl implements CartService {
                 });
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ProductNotFoundException("Product not found"));
-        if (product.getStock() == null) {
-            log.error("Product stock is null for productId={}", product.getId());
-            throw new ProductNotFoundException("Product stock is missing");
-        }
-        if (product.getStock().getValue() < request.getQuantity()) {
-            log.warn("Insufficient stock for productId={}, requested={}, available={}", product.getId(), request.getQuantity(), product.getStock().getValue());
+        if (product.getStock() < request.getQuantity()) {
+            log.warn("Insufficient stock for productId={}, requested={}, available={}", product.getId(), request.getQuantity(), product.getStock());
             throw new InsufficientStockException("Insufficient stock for product");
         }
         Optional<CartItem> existing = cart.getItems().stream()
@@ -81,8 +77,8 @@ public class CartServiceImpl implements CartService {
         if (existing.isPresent()) {
             CartItem item = existing.get();
             int newQty = item.getQuantity() + request.getQuantity();
-            if (product.getStock().getValue() < newQty) {
-                log.warn("Insufficient stock for productId={} when updating cart item, requested total={}, available={}", product.getId(), newQty, product.getStock().getValue());
+            if (product.getStock() < newQty) {
+                log.warn("Insufficient stock for productId={} when updating cart item, requested total={}, available={}", product.getId(), newQty, product.getStock());
                 throw new InsufficientStockException("Insufficient stock for product");
             }
             log.debug("Updating quantity for existing cart item id={} to {}", item.getId(), newQty);
@@ -115,12 +111,8 @@ public class CartServiceImpl implements CartService {
             log.error("CartItem with id={} has no product", item.getId());
             throw new ProductNotFoundException("CartItem has no product");
         }
-        if (product.getStock() == null) {
-            log.error("Product stock is null for productId={}", product.getId());
-            throw new ProductNotFoundException("Product stock is missing");
-        }
-        if (product.getStock().getValue() < request.getQuantity()) {
-            log.warn("Insufficient stock for productId={}, requested={}, available={}", product.getId(), request.getQuantity(), product.getStock().getValue());
+        if (product.getStock() < request.getQuantity()) {
+            log.warn("Insufficient stock for productId={}, requested={}, available={}", product.getId(), request.getQuantity(), product.getStock());
             throw new InsufficientStockException("Insufficient stock for product");
         }
         log.debug("Updating cart item id={} quantity to {}", item.getId(), request.getQuantity());

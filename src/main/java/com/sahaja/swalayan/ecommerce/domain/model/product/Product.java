@@ -7,18 +7,18 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.UUID;
+import java.math.BigDecimal;
 
 import com.sahaja.swalayan.ecommerce.domain.model.AuditableEntity;
 
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.JoinColumn;
-
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -40,13 +40,12 @@ public class Product extends AuditableEntity {
 
     String description;
 
-    @Valid
     @NotNull(message = "Product price must not be null")
-    Price price;
+    @Column(nullable = false, precision = 19, scale = 2)
+    BigDecimal price;
 
-    @Valid
-    @NotNull(message = "Product stock must not be null")
-    Stock stock;
+    @Column(nullable = false)
+    int stock;
 
     @ManyToOne
     @JoinColumn(name = "category_id")
