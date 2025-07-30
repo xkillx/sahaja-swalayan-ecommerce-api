@@ -6,6 +6,10 @@ import com.sahaja.swalayan.ecommerce.application.mapper.OrderMapper;
 import com.sahaja.swalayan.ecommerce.domain.model.order.Order;
 import com.sahaja.swalayan.ecommerce.domain.model.order.PaymentMethod;
 import com.sahaja.swalayan.ecommerce.domain.service.OrderService;
+import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiCreateOrderOperation;
+import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiGetOrderByIdOperation;
+import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiGetUserOrdersOperation;
+import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiCancelOrderOperation;
 import com.sahaja.swalayan.ecommerce.application.dto.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +28,7 @@ public class OrderController {
     private final OrderService orderService;
     private final OrderMapper orderMapper;
 
+    @ApiCreateOrderOperation
     @PostMapping
     public ResponseEntity<ApiResponse<OrderDTO>> createOrderFromCart(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -34,6 +39,7 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order created", toOrderDTO(order)));
     }
 
+    @ApiGetUserOrdersOperation
     @GetMapping
     public ResponseEntity<ApiResponse<List<OrderDTO>>> getUserOrders(@AuthenticationPrincipal CustomUserDetails userDetails) {
         UUID userId = userDetails.getId();
@@ -42,6 +48,7 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Orders fetched", dtos));
     }
 
+    @ApiGetOrderByIdOperation
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<OrderDTO>> getOrderById(
             @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -51,6 +58,7 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order fetched", toOrderDTO(order)));
     }
 
+    @ApiCancelOrderOperation
     @PostMapping("/{id}/cancel")
     public ResponseEntity<ApiResponse<OrderDTO>> cancelOrder(
             @AuthenticationPrincipal CustomUserDetails userDetails,
