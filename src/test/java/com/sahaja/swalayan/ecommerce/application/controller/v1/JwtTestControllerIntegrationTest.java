@@ -1,4 +1,4 @@
-package com.sahaja.swalayan.ecommerce.application.controller;
+package com.sahaja.swalayan.ecommerce.application.controller.v1;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;

@@ -1,4 +1,4 @@
-package com.sahaja.swalayan.ecommerce.application.controller;
+package com.sahaja.swalayan.ecommerce.application.controller.v1;
 
 import com.sahaja.swalayan.ecommerce.application.dto.ApiResponse;
 import com.sahaja.swalayan.ecommerce.application.dto.RegisterRequest;
