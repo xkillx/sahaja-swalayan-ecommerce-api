@@ -1,4 +1,4 @@
-package com.sahaja.swalayan.ecommerce.application.controller;
+package com.sahaja.swalayan.ecommerce.application.controller.v1;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sahaja.swalayan.ecommerce.application.dto.OrderRequest;
@@ -103,9 +103,10 @@ class OrderControllerIntegrationTest {
                 .andExpect(status().isOk());
 
         // Create order from cart
-        OrderRequest orderRequest = new OrderRequest();
-        orderRequest.setShippingAddress("Jl. Test 123");
-        orderRequest.setPaymentMethod("CREDIT_CARD");
+        OrderRequest orderRequest = OrderRequest.builder()
+                .shippingAddress("Jl. Test 123")
+                .paymentMethod("CREDIT_CARD")
+                .build();
         mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(orderRequest)))
@@ -125,9 +126,10 @@ class OrderControllerIntegrationTest {
                 .content(addToCartJson))
                 .andExpect(status().isOk());
 
-        OrderRequest orderRequest = new OrderRequest();
-        orderRequest.setShippingAddress("Jl. Test 456");
-        orderRequest.setPaymentMethod("CREDIT_CARD");
+        OrderRequest orderRequest = OrderRequest.builder()
+                .shippingAddress("Jl. Test 456")
+                .paymentMethod("CREDIT_CARD")
+                .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(orderRequest)))
@@ -153,9 +155,10 @@ class OrderControllerIntegrationTest {
                 .content(addToCartJson))
                 .andExpect(status().isOk());
 
-        OrderRequest orderRequest = new OrderRequest();
-        orderRequest.setShippingAddress("Jl. Test 789");
-        orderRequest.setPaymentMethod("CREDIT_CARD");
+        OrderRequest orderRequest = OrderRequest.builder()
+                .shippingAddress("Jl. Test 789")
+                .paymentMethod("CREDIT_CARD")
+                .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(orderRequest)))

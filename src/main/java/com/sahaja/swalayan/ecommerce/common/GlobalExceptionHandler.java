@@ -29,7 +29,9 @@ public class GlobalExceptionHandler {
         EntityNotFoundException.class,
         ProductNotFoundException.class,
         CartItemNotFoundException.class,
-        CartNotFoundException.class
+        CartNotFoundException.class,
+        PaymentNotFoundException.class,
+        OrderNotFoundException.class
     })
     public ResponseEntity<ApiResponse<?>> handleNotFound(RuntimeException ex, WebRequest request) {
         log.error("Not Found: {}", ex.getMessage());
@@ -50,6 +52,7 @@ public class GlobalExceptionHandler {
         InsufficientStockException.class,
         InvalidConfirmationTokenException.class,
         InvalidPaymentMethodException.class,
+        InvalidXenditPayloadException.class,
         JwtException.class
     })
     public ResponseEntity<ApiResponse<?>> handleBadRequest(Exception ex, WebRequest request) {
@@ -72,6 +75,14 @@ public class GlobalExceptionHandler {
         log.error("Forbidden: {}", ex.getMessage());
         ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+    }
+    
+    // Handle UNAUTHORIZED for webhook token validation
+    @ExceptionHandler(InvalidXenditWebhookException.class)
+    public ResponseEntity<ApiResponse<?>> handleUnauthorizedWebhook(InvalidXenditWebhookException ex, WebRequest request) {
+        log.error("Unauthorized webhook request: {}", ex.getMessage());
+        ApiResponse<?> error = ApiResponse.error("Webhook authentication failed: " + ex.getMessage());
+        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -10,7 +10,7 @@ public enum PaymentMethod {
     VIRTUAL_ACCOUNT,
     RETAIL_OUTLET,
     DIRECT_DEBIT,
-    PAYLATER;
+    PAYLATER, BANK_TRANSFER;
 
     public static PaymentMethod fromString(String value) {
         if (value == null) throw new InvalidPaymentMethodException("Payment method is required");

@@ -100,6 +100,9 @@ public class SecurityConfig {
                 .requestMatchers("/v1/products/**").permitAll()
                 .requestMatchers("/v1/categories/**").permitAll()
                 
+                // Public endpoints - Payment webhooks (secured by callback token)
+                .requestMatchers("/v1/payments/webhook").permitAll()
+                
                 // Public endpoints - Health checks and monitoring
                 .requestMatchers("/v1/auth/register", "/v1/auth/confirm", "/v1/jwt/extract", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/actuator/info", "/favicon.ico", "/error")
                     .permitAll()             // Public endpoints - API Documentation

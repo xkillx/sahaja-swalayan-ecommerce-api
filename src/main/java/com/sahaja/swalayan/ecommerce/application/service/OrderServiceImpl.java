@@ -63,7 +63,7 @@ public class OrderServiceImpl implements OrderService {
         log.debug("Calculated total amount for order: {}", totalAmount);
 
         // 3. Reserve stock by calling InventoryService
-        log.debug("Reserving stock for cart items: {}", cartItems);
+        log.debug("Reserving stock for cart items on InventoryService");
         inventoryService.reserveStock(cartItems);
         log.debug("Stock reserved successfully for userId={}", userId);
 

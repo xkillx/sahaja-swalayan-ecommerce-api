@@ -21,7 +21,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     public void reserveStock(Set<CartItem> cartItems) {
-        log.debug("Reserving stock for cart items: {}", cartItems);
+        log.debug("Reserving stock for {} cart items", cartItems.size());
         for (CartItem item : cartItems) {
             UUID productId = item.getProduct().getId();
             int quantityRequested = item.getQuantity();
