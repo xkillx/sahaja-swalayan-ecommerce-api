@@ -14,6 +14,9 @@ import java.util.List;
 @Configuration
 public class OpenApiConfig {
 
+    @Value("${server.servlet.context-path:/api}")
+    private String contextPath;
+
     @Value("${server.port:8080}")
     private String serverPort;
 
@@ -33,7 +36,7 @@ public class OpenApiConfig {
                                 .url("https://opensource.org/licenses/MIT")))
                 .servers(List.of(
                         new Server()
-                                .url("http://localhost:" + serverPort)
+                                .url("http://localhost:" + serverPort + contextPath)
                                 .description("Development Server"),
                         new Server()
                                 .url("https://api.sahajaswalayan.com")
