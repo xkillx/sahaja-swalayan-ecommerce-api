@@ -99,6 +99,12 @@ public class SecurityConfig {
                 // Public endpoints - Product and Category APIs
                 .requestMatchers("/v1/products/**").permitAll()
                 .requestMatchers("/v1/categories/**").permitAll()
+
+                // Public endpoint for static product images
+                .requestMatchers("/uploads/products/**").permitAll()
+
+                // Public endpoint for static product images
+                .requestMatchers("/uploads/products/**").permitAll()
                 
                 // Public endpoints - Payment webhooks (secured by callback token)
                 .requestMatchers("/v1/payments/webhook").permitAll()

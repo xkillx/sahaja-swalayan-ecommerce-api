@@ -3,8 +3,13 @@ package com.sahaja.swalayan.ecommerce.application.controller.v1;
 import com.sahaja.swalayan.ecommerce.application.dto.CategoryDTO;
 import com.sahaja.swalayan.ecommerce.application.dto.ProductDTO;
 
+import lombok.extern.slf4j.Slf4j;
+
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,14 +20,68 @@ import org.springframework.http.HttpStatus;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.ResponseEntity;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Slf4j
 public class ProductControllerIntegrationTest {
+
+    private final List<UUID> productsToCleanup = new ArrayList<>();
+    private final List<Path> imagesToCleanup = new ArrayList<>();
+
+    @AfterEach
+    void cleanUp() {
+        for (UUID productId : productsToCleanup) {
+            if (productId == null) {
+                log.warn("[cleanUp] Skipping null productId");
+                continue;
+            }
+            try {
+                restTemplate.delete(getBaseUrl() + "/" + productId);
+                log.debug("[cleanUp] Deleted product: {}", productId);
+            } catch (Exception e) {
+                log.warn("[cleanUp] Failed to delete product {}: {}", productId, e.getMessage());
+                // Optionally, try to fetch product to see if it still exists
+                try {
+                    ResponseEntity<?> resp = restTemplate.getForEntity(getBaseUrl() + "/" + productId, Object.class);
+                    log.warn("[cleanUp] Product {} still exists after delete attempt. Status: {}", productId, resp.getStatusCode());
+                } catch (Exception ex) {
+                    log.info("[cleanUp] Product {} confirmed deleted (not found)", productId);
+                }
+            }
+        }
+        productsToCleanup.clear();
+        for (Path imagePath : imagesToCleanup) {
+            if (imagePath == null) {
+                log.warn("[cleanUp] Skipping null imagePath");
+                continue;
+            }
+            try {
+                Files.deleteIfExists(imagePath);
+                log.debug("[cleanUp] Deleted image: {}", imagePath);
+            } catch (Exception e) {
+                log.warn("[cleanUp] Failed to delete image {}: {}", imagePath, e.getMessage());
+            }
+        }
+        imagesToCleanup.clear();
+    }
 
     private UUID testCategoryId;
     private final String testCategoryName = "TestCategoryForProduct";
@@ -88,8 +147,8 @@ public class ProductControllerIntegrationTest {
         assertThat(fetched.getId()).isEqualTo(created.getId());
         assertThat(fetched.getName()).isEqualTo("Test Product");
 
-        // delete product after test
-        restTemplate.delete(getBaseUrl() + "/" + created.getId());
+        // mark product for cleanup
+        productsToCleanup.add(created.getId());
     }
 
     @Test
@@ -101,6 +160,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
+    @Order(1)
     void testGetAllProducts() {
         // save 2 products
         ProductDTO product1 = ProductDTO.builder()
@@ -206,8 +266,8 @@ public class ProductControllerIntegrationTest {
     void testCreateProductWithMalformedJson() {
         // Intentionally malformed JSON (missing closing brace)
         String malformedJson = "{\"name\": \"Bad Product\", \"price\": 10.00, ";
-        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        headers.set("Content-Type", "application/json");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<String> request = new HttpEntity<>(malformedJson, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(getBaseUrl(), request, String.class);
         assertThat(response.getStatusCode().is4xxClientError()).isTrue();
@@ -237,5 +297,155 @@ public class ProductControllerIntegrationTest {
         // Optionally, check that no unexpected errors are present (if your API returns
         // just these messages)
         // Example: assertThat(responseBody).doesNotContain("Unexpected error");
+    }
+
+    @Test
+    void testUploadProductImage() throws Exception {
+        log.debug("[testUploadProductImage] Start");
+        // Create a product first
+        ProductDTO productDTO = ProductDTO.builder()
+                .name("Image Product")
+                .description("Product with image")
+                .price(new BigDecimal("29.99"))
+                .stock(5)
+                .categoryId(testCategoryId)
+                .build();
+        ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        ProductDTO created = createResponse.getBody();
+        assertThat(created).isNotNull();
+
+        // Prepare multipart file upload
+        String uploadUrl = getBaseUrl() + "/" + created.getId() + "/image";
+        ClassPathResource imageResource = new ClassPathResource("test-image.png");
+        LinkedMultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
+        parts.add("file", imageResource);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(parts, headers);
+
+        ResponseEntity<ProductDTO> uploadResponse = restTemplate.postForEntity(uploadUrl, requestEntity, ProductDTO.class);
+        assertThat(uploadResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ProductDTO updated = uploadResponse.getBody();
+        assertThat(updated).isNotNull();
+        assertThat(updated.getImageUrl()).isNotBlank();
+        // Optionally: check that the file exists on disk
+        Path imagePath = Paths.get("uploads/products/", updated.getImageUrl().substring(updated.getImageUrl().lastIndexOf("/") + 1));
+        log.debug("[testUploadProductImage] Image stored at: {}", imagePath);
+        assertThat(Files.exists(imagePath)).isTrue();
+
+        // Mark for cleanup
+        productsToCleanup.add(created.getId());
+        imagesToCleanup.add(imagePath);
+        log.debug("[testUploadProductImage] End");
+    }
+
+    @Test
+    void testRetrieveProductImageUrlAfterUpload() throws Exception {
+        log.debug("[testRetrieveProductImageUrlAfterUpload] Start");
+        UUID productId = null;
+        Path imagePath = null;
+        try {
+            // Create a product
+            ProductDTO productDTO = ProductDTO.builder()
+                    .name("RetrieveImage Product")
+                    .description("Product for image retrieval")
+                    .price(new BigDecimal("29.99"))
+                    .stock(5)
+                    .categoryId(testCategoryId)
+                    .build();
+            ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
+            assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            ProductDTO created = createResponse.getBody();
+            assertThat(created).isNotNull();
+            productId = created.getId();
+            productsToCleanup.add(productId);
+
+            // Upload image
+            String uploadUrl = getBaseUrl() + "/" + productId + "/image";
+            ClassPathResource imageResource = new ClassPathResource("test-image.png");
+            LinkedMultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
+            parts.add("file", imageResource);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(parts, headers);
+
+            ResponseEntity<ProductDTO> uploadResponse = restTemplate.postForEntity(uploadUrl, requestEntity, ProductDTO.class);
+            assertThat(uploadResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            ProductDTO updated = uploadResponse.getBody();
+            assertThat(updated).isNotNull();
+            assertThat(updated.getImageUrl()).isNotBlank();
+            imagePath = Paths.get("uploads/products/", updated.getImageUrl().substring(updated.getImageUrl().lastIndexOf("/") + 1));
+            imagesToCleanup.add(imagePath);
+
+            // Retrieve product and verify imageUrl is present
+            log.debug("[testRetrieveProductImageUrlAfterUpload] Retrieving product to verify imageUrl");
+            ResponseEntity<ProductDTO> getResponse = restTemplate.getForEntity(getBaseUrl() + "/" + productId, ProductDTO.class);
+            assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            ProductDTO fetched = getResponse.getBody();
+            assertThat(fetched).isNotNull();
+            log.debug("[testRetrieveProductImageUrlAfterUpload] Verified imageUrl matches uploaded: {}", fetched.getImageUrl());
+            assertThat(fetched.getImageUrl()).isEqualTo(updated.getImageUrl());
+        } catch (Exception e) {
+            log.error("[testRetrieveProductImageUrlAfterUpload] Test failed, cleanup registered: {}", e.getMessage());
+            throw e;
+        }
+        log.debug("[testRetrieveProductImageUrlAfterUpload] End");
+    }
+
+    @Test
+    void testStaticServingOfProductImage() throws Exception {
+        log.debug("[testStaticServingOfProductImage] Start");
+        UUID productId = null;
+        Path imagePath = null;
+        try {
+            // Create a product
+            ProductDTO productDTO = ProductDTO.builder()
+                    .name("StaticImage Product")
+                    .description("Product for static file test")
+                    .price(new BigDecimal("19.99"))
+                    .stock(1)
+                    .categoryId(testCategoryId)
+                    .build();
+            ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
+            assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            ProductDTO created = createResponse.getBody();
+            assertThat(created).isNotNull();
+            productId = created.getId();
+            productsToCleanup.add(productId);
+
+            // Upload image
+            String uploadUrl = getBaseUrl() + "/" + productId + "/image";
+            ClassPathResource imageResource = new ClassPathResource("test-image.png");
+            LinkedMultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
+            parts.add("file", imageResource);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(parts, headers);
+
+            ResponseEntity<ProductDTO> uploadResponse = restTemplate.postForEntity(uploadUrl, requestEntity, ProductDTO.class);
+            assertThat(uploadResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            ProductDTO updated = uploadResponse.getBody();
+            assertThat(updated).isNotNull();
+            assertThat(updated.getImageUrl()).isNotBlank();
+            imagePath = Paths.get("uploads/products/", updated.getImageUrl().substring(updated.getImageUrl().lastIndexOf("/") + 1));
+            imagesToCleanup.add(imagePath);
+
+            // Fetch the image via static resource URL
+            String imageUrl = "http://localhost:" + port + "/api" + updated.getImageUrl();
+            log.debug("[testStaticServingOfProductImage] Fetching image from: {}", imageUrl);
+            ResponseEntity<byte[]> imageResponse = restTemplate.getForEntity(imageUrl, byte[].class);
+            assertThat(imageResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(imageResponse.getHeaders().getContentType().toString()).startsWith("image/");
+            assertThat(imageResponse.getBody()).isNotNull();
+
+            // Compare content length to original file
+            byte[] originalBytes = imageResource.getInputStream().readAllBytes();
+            assertThat(imageResponse.getBody().length).isEqualTo(originalBytes.length);
+        } catch (Exception e) {
+            log.error("[testStaticServingOfProductImage] Test failed, cleanup registered: {}", e.getMessage());
+            throw e;
+        }
+        log.debug("[testStaticServingOfProductImage] End");
     }
 }

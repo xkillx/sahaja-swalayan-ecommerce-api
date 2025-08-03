@@ -51,4 +51,7 @@ public class Product extends AuditableEntity {
     @JoinColumn(name = "category_id")
     @NotNull(message = "Product category must not be null")
     Category category;
+
+    @Column(name = "image_url")
+    String imageUrl;
 }

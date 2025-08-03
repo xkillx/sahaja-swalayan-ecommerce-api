@@ -60,4 +60,12 @@ public class ProductServiceImpl implements ProductService {
         return productRepository.findByName(name)
                 .orElseThrow(() -> new EntityNotFoundException("Product not found with name: " + name));
     }
+
+    @Override
+    public Product updateProductImage(UUID id, String imageUrl) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Product not found with id: " + id));
+        product.setImageUrl(imageUrl);
+        return productRepository.save(product);
+    }
 }

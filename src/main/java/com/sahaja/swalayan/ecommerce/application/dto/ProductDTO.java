@@ -38,5 +38,7 @@ public class ProductDTO {
 
     @NotNull(message = "Category is required")
     private UUID categoryId;
+
+    private String imageUrl;
 }
 

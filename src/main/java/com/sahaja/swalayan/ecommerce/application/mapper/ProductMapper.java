@@ -13,9 +13,11 @@ import java.util.UUID;
 @Mapper(componentModel = "spring")
 public interface ProductMapper {
     @Mapping(source = "category.id", target = "categoryId")
+    @Mapping(source = "imageUrl", target = "imageUrl")
     ProductDTO toDto(Product product);
 
     @Mapping(source = "categoryId", target = "category", qualifiedByName = "uuidToCategory")
+    @Mapping(source = "imageUrl", target = "imageUrl")
     Product toEntity(ProductDTO productDTO);
 
     List<ProductDTO> toDtoList(List<Product> products);

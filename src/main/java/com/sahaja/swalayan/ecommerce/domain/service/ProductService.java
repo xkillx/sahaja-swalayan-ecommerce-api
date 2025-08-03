@@ -11,5 +11,5 @@ public interface ProductService {
     void deleteById(UUID id);
     Product update(UUID id, Product product);
     Product findByName(String name);
-    // Add more domain methods as needed
+    Product updateProductImage(UUID id, String imageUrl);
 }
