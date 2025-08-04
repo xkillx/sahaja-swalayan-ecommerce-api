@@ -19,9 +19,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 @Entity
 @Table(name = "products")
@@ -34,22 +31,36 @@ public class Product extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
-    @NotBlank(message = "Product name must not be blank")
-    @Size(max = 255, message = "Product name must not exceed 255 characters")
+    
+    @Column(name = "name", nullable = false, length = 255)
     String name;
 
+    @Column(name = "description", length = 1024)
     String description;
 
-    @NotNull(message = "Product price must not be null")
-    @Column(nullable = false, precision = 19, scale = 2)
+    @Column(name = "price", nullable = false, precision = 19, scale = 2)
     BigDecimal price;
 
-    @Column(nullable = false)
-    int stock;
+    @Column(name = "quantity", nullable = false)
+    Integer quantity;
+
+    @Column(name = "weight", nullable = false)
+    Integer weight;
+
+    @Column(name = "sku", length = 64)
+    String sku;
+
+    @Column(name = "height")
+    Integer height;
+
+    @Column(name = "length")
+    Integer length;
+
+    @Column(name = "width")
+    Integer width;
 
     @ManyToOne
     @JoinColumn(name = "category_id")
-    @NotNull(message = "Product category must not be null")
     Category category;
 
     @Column(name = "image_url")

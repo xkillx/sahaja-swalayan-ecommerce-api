@@ -64,8 +64,9 @@ class OrderControllerIntegrationTest {
 
         product = Product.builder()
                 .name("OrderProduct")
-                .stock(10)
+                .quantity(10)
                 .price(new BigDecimal(20000))
+                .weight(1000)
                 .category(category)
                 .build();
         productRepository.save(product);

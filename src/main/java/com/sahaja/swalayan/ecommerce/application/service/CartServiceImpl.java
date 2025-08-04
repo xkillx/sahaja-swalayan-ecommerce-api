@@ -11,8 +11,8 @@ import com.sahaja.swalayan.ecommerce.application.dto.AddCartItemRequest;
 import com.sahaja.swalayan.ecommerce.application.dto.UpdateCartItemRequest;
 import com.sahaja.swalayan.ecommerce.common.CartNotFoundException;
 import com.sahaja.swalayan.ecommerce.common.ProductNotFoundException;
-import com.sahaja.swalayan.ecommerce.common.InsufficientStockException;
 import com.sahaja.swalayan.ecommerce.common.CartItemNotFoundException;
+import com.sahaja.swalayan.ecommerce.common.InsufficientQuantityException;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
@@ -61,9 +61,9 @@ public class CartServiceImpl implements CartService {
                 });
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ProductNotFoundException("Product not found"));
-        if (product.getStock() < request.getQuantity()) {
-            log.warn("Insufficient stock for productId={}, requested={}, available={}", product.getId(), request.getQuantity(), product.getStock());
-            throw new InsufficientStockException("Insufficient stock for product");
+        if (product.getQuantity() < request.getQuantity()) {
+            log.warn("Insufficient quantity for productId={}, requested={}, available={}", product.getId(), request.getQuantity(), product.getQuantity());
+            throw new InsufficientQuantityException("Insufficient quantity: only " + product.getQuantity() + " left");
         }
         Optional<CartItem> existing = cart.getItems().stream()
                 .filter(item -> {
@@ -77,9 +77,9 @@ public class CartServiceImpl implements CartService {
         if (existing.isPresent()) {
             CartItem item = existing.get();
             int newQty = item.getQuantity() + request.getQuantity();
-            if (product.getStock() < newQty) {
-                log.warn("Insufficient stock for productId={} when updating cart item, requested total={}, available={}", product.getId(), newQty, product.getStock());
-                throw new InsufficientStockException("Insufficient stock for product");
+            if (product.getQuantity() < newQty) {
+                log.warn("Insufficient quantity for productId={} when updating cart item, requested total={}, available={}", product.getId(), newQty, product.getQuantity());
+                throw new InsufficientQuantityException("Insufficient quantity: only " + product.getQuantity() + " left");
             }
             log.debug("Updating quantity for existing cart item id={} to {}", item.getId(), newQty);
             item.setQuantity(newQty);
@@ -111,9 +111,9 @@ public class CartServiceImpl implements CartService {
             log.error("CartItem with id={} has no product", item.getId());
             throw new ProductNotFoundException("CartItem has no product");
         }
-        if (product.getStock() < request.getQuantity()) {
-            log.warn("Insufficient stock for productId={}, requested={}, available={}", product.getId(), request.getQuantity(), product.getStock());
-            throw new InsufficientStockException("Insufficient stock for product");
+        if (product.getQuantity() < request.getQuantity()) {
+            log.warn("Insufficient quantity for productId={}, requested={}, available={}", product.getId(), request.getQuantity(), product.getQuantity());
+            throw new InsufficientQuantityException("Insufficient quantity: only " + product.getQuantity() + " left");
         }
         log.debug("Updating cart item id={} quantity to {}", item.getId(), request.getQuantity());
         item.setQuantity(request.getQuantity());

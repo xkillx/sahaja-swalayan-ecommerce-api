@@ -62,7 +62,7 @@ public class OrderServiceImpl implements OrderService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         log.debug("Calculated total amount for order: {}", totalAmount);
 
-        // 3. Reserve stock by calling InventoryService
+        // 3. Reserve quantity by calling InventoryService
         log.debug("Reserving stock for cart items on InventoryService");
         inventoryService.reserveStock(cartItems);
         log.debug("Stock reserved successfully for userId={}", userId);

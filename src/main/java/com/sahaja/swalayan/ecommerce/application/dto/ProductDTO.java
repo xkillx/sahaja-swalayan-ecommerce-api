@@ -32,13 +32,29 @@ public class ProductDTO {
     @DecimalMin(value = "0.0", inclusive = false, message = "Price must be greater than 0")
     private BigDecimal price;
 
-    @NotNull(message = "Stock is required")
-    @Min(value = 0, message = "Stock must be non-negative")
-    private Integer stock;
+    @NotNull(message = "Quantity is required")
+    @Min(value = 1, message = "Quantity must be greater than 0")
+    private Integer quantity;
 
     @NotNull(message = "Category is required")
     private UUID categoryId;
 
     private String imageUrl;
+
+    @NotNull(message = "Weight is required")
+    @Min(value = 1, message = "Weight must be greater than 0")
+    private Integer weight;
+
+    @Size(max = 64, message = "SKU must not exceed 64 characters")
+    private String sku;
+
+    @Min(value = 0, message = "Height must be non-negative")
+    private Integer height;
+
+    @Min(value = 0, message = "Length must be non-negative")
+    private Integer length;
+
+    @Min(value = 0, message = "Width must be non-negative")
+    private Integer width;
 }
 

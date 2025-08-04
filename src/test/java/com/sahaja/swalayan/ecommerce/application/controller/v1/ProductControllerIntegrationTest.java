@@ -8,11 +8,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.util.LinkedMultiValueMap;
@@ -120,38 +123,57 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
+    @Order(1)
     void testCreateAndGetProduct() {
+        log.debug("[testCreateAndGetProduct] Start");
         // Create product
         ProductDTO productDTO = ProductDTO.builder()
                 .name("Test Product")
                 .description("Test Desc")
                 .price(new BigDecimal("19.99"))
-                .stock(10)
+                .quantity(10)
+                .weight(5)
                 .categoryId(testCategoryId)
                 .build();
 
-        ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO,
-                ProductDTO.class);
+        log.debug("[testCreateAndGetProduct] Creating product: {}", productDTO);
+        ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
+        log.debug("[testCreateAndGetProduct] Create response: status={}, body={}", createResponse.getStatusCode(), createResponse.getBody());
+
         assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ProductDTO created = createResponse.getBody();
-        assertThat(created).isNotNull();
-        assertThat(created.getId()).isNotNull();
+        if (created == null) {
+            log.error("[testCreateAndGetProduct] Product creation failed, response body is null! Full response: {}", createResponse);
+            fail("Product creation failed: response body is null");
+        }
+        if (created.getId() == null) {
+            log.error("[testCreateAndGetProduct] Product creation failed, ID is null! ProductDTO: {}", created);
+            fail("Product creation failed: ID is null");
+        }
+        log.debug("[testCreateAndGetProduct] Product created: {}", created);
         assertThat(created.getName()).isEqualTo("Test Product");
 
         // Get product by id
-        ResponseEntity<ProductDTO> getResponse = restTemplate.getForEntity(getBaseUrl() + "/" + created.getId(),
-                ProductDTO.class);
+        log.debug("[testCreateAndGetProduct] Fetching product by id: {}", created.getId());
+        ResponseEntity<ProductDTO> getResponse = restTemplate.getForEntity(getBaseUrl() + "/" + created.getId(), ProductDTO.class);
         assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         ProductDTO fetched = getResponse.getBody();
-        assertThat(fetched).isNotNull();
+        if (fetched == null) {
+            log.error("[testCreateAndGetProduct] Fetched product is null! Response: {}", getResponse);
+            fail("Fetched product is null");
+        }
+        log.debug("[testCreateAndGetProduct] Product fetched: {}", fetched);
         assertThat(fetched.getId()).isEqualTo(created.getId());
         assertThat(fetched.getName()).isEqualTo("Test Product");
 
         // mark product for cleanup
+        log.debug("[testCreateAndGetProduct] Marking product for cleanup: {}", created.getId());
         productsToCleanup.add(created.getId());
+        log.debug("[testCreateAndGetProduct] End");
     }
 
     @Test
+    @Order(2)
     void testGetNotFound() {
         UUID randomId = UUID.randomUUID();
         ResponseEntity<String> response = restTemplate.getForEntity(getBaseUrl() + "/" + randomId, String.class);
@@ -160,21 +182,23 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
-    @Order(1)
+    @Order(3)
     void testGetAllProducts() {
         // save 2 products
         ProductDTO product1 = ProductDTO.builder()
                 .name("Product 1")
                 .description("Description 1")
                 .price(new BigDecimal("19.99"))
-                .stock(10)
+                .quantity(10)
+                .weight(1)
                 .categoryId(testCategoryId)
                 .build();
         ProductDTO product2 = ProductDTO.builder()
                 .name("Product 2")
                 .description("Description 2")
                 .price(new BigDecimal("29.99"))
-                .stock(20)
+                .quantity(20)
+                .weight(2)
                 .categoryId(testCategoryId)
                 .build();
         ProductDTO savedProduct1 = restTemplate.postForEntity(getBaseUrl(), product1, ProductDTO.class).getBody();
@@ -193,13 +217,15 @@ public class ProductControllerIntegrationTest {
 
     // test update product
     @Test
+    @Order(4)
     void testUpdateProduct() {
         // save 1 product
         ProductDTO product = ProductDTO.builder()
                 .name("Product 1")
                 .description("Description 1")
                 .price(new BigDecimal("19.99"))
-                .stock(10)
+                .quantity(10)
+                .weight(1)
                 .categoryId(testCategoryId)
                 .build();
         ProductDTO savedProduct = restTemplate.postForEntity(getBaseUrl(), product, ProductDTO.class).getBody();
@@ -209,7 +235,8 @@ public class ProductControllerIntegrationTest {
                 .name("Updated Product 1")
                 .description("Updated Description 1")
                 .price(new BigDecimal("29.99"))
-                .stock(20)
+                .quantity(20)
+                .weight(2)
                 .categoryId(testCategoryId)
                 .build();
         ResponseEntity<ProductDTO> response = restTemplate.exchange(getBaseUrl() + "/" + savedProduct.getId(),
@@ -219,7 +246,7 @@ public class ProductControllerIntegrationTest {
         assertThat(response.getBody().getName()).isEqualTo("Updated Product 1");
         assertThat(response.getBody().getDescription()).isEqualTo("Updated Description 1");
         assertThat(response.getBody().getPrice()).isEqualTo(new BigDecimal("29.99"));
-        assertThat(response.getBody().getStock()).isEqualTo(20);
+        assertThat(response.getBody().getQuantity()).isEqualTo(20);
 
         // delete product after test
         restTemplate.delete(getBaseUrl() + "/" + savedProduct.getId());
@@ -227,13 +254,15 @@ public class ProductControllerIntegrationTest {
 
     // test delete product
     @Test
+    @Order(5)
     void testDeleteProduct() {
         // save 1 product
         ProductDTO product = ProductDTO.builder()
                 .name("Product 1")
                 .description("Description 1")
                 .price(new BigDecimal("19.99"))
-                .stock(10)
+                .quantity(10)
+                .weight(1)
                 .categoryId(testCategoryId)
                 .build();
         ProductDTO savedProduct = restTemplate.postForEntity(getBaseUrl(), product, ProductDTO.class).getBody();
@@ -245,6 +274,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
+    @Order(6)
     void testCreateProductWithInvalidCategory() {
         // Use a random UUID for categoryId that does not exist
         UUID invalidCategoryId = UUID.randomUUID();
@@ -252,7 +282,8 @@ public class ProductControllerIntegrationTest {
                 .name("Product Invalid Category")
                 .description("Should fail")
                 .price(new BigDecimal("10.00"))
-                .stock(5)
+                .quantity(5)
+                .weight(1)
                 .categoryId(invalidCategoryId)
                 .build();
 
@@ -263,6 +294,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
+    @Order(7)
     void testCreateProductWithMalformedJson() {
         // Intentionally malformed JSON (missing closing brace)
         String malformedJson = "{\"name\": \"Bad Product\", \"price\": 10.00, ";
@@ -276,13 +308,15 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
+    @Order(8)
     void testCreateProductValidationErrors() {
         // Create an invalid ProductDTO (blank name, negative price, null stock, null
         // category)
         ProductDTO invalidProduct = ProductDTO.builder()
                 .name("") // blank name
                 .price(new BigDecimal("-1")) // negative price
-                .stock(null) // null stock
+                .quantity(null) // null stock
+                .weight(null) // null weight
                 .categoryId(null) // null category
                 .build();
 
@@ -292,7 +326,8 @@ public class ProductControllerIntegrationTest {
         // Assert all expected validation error messages are present
         assertThat(responseBody).contains("Product name is required");
         assertThat(responseBody).contains("Price must be greater than 0");
-        assertThat(responseBody).contains("Stock is required");
+        assertThat(responseBody).contains("Quantity is required");
+        assertThat(responseBody).contains("Weight is required");
         assertThat(responseBody).contains("Category is required");
         // Optionally, check that no unexpected errors are present (if your API returns
         // just these messages)
@@ -300,6 +335,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
+    @Order(9)
     void testUploadProductImage() throws Exception {
         log.debug("[testUploadProductImage] Start");
         // Create a product first
@@ -307,7 +343,8 @@ public class ProductControllerIntegrationTest {
                 .name("Image Product")
                 .description("Product with image")
                 .price(new BigDecimal("29.99"))
-                .stock(5)
+                .quantity(5)
+                .weight(1)
                 .categoryId(testCategoryId)
                 .build();
         ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
@@ -341,6 +378,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
+    @Order(10)
     void testRetrieveProductImageUrlAfterUpload() throws Exception {
         log.debug("[testRetrieveProductImageUrlAfterUpload] Start");
         UUID productId = null;
@@ -351,7 +389,8 @@ public class ProductControllerIntegrationTest {
                     .name("RetrieveImage Product")
                     .description("Product for image retrieval")
                     .price(new BigDecimal("29.99"))
-                    .stock(5)
+                    .quantity(5)
+                    .weight(1)
                     .categoryId(testCategoryId)
                     .build();
             ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
@@ -394,6 +433,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
+    @Order(11)
     void testStaticServingOfProductImage() throws Exception {
         log.debug("[testStaticServingOfProductImage] Start");
         UUID productId = null;
@@ -404,7 +444,8 @@ public class ProductControllerIntegrationTest {
                     .name("StaticImage Product")
                     .description("Product for static file test")
                     .price(new BigDecimal("19.99"))
-                    .stock(1)
+                    .quantity(1)
+                    .weight(1)
                     .categoryId(testCategoryId)
                     .build();
             ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);

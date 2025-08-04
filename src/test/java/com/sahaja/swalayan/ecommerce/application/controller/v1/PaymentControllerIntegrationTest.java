@@ -104,8 +104,9 @@ class PaymentControllerIntegrationTest {
         // Create test product
         product = Product.builder()
                 .name("PaymentTestProduct")
-                .stock(10)
+                .quantity(10)
                 .price(new BigDecimal("50000"))
+                .weight(1000)
                 .category(category)
                 .build();
         productRepository.save(product);

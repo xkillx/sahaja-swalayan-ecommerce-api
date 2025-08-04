@@ -15,6 +15,7 @@ import com.sahaja.swalayan.ecommerce.domain.repository.ProductRepository;
 import com.sahaja.swalayan.ecommerce.domain.repository.CategoryRepository;
 import com.sahaja.swalayan.ecommerce.domain.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,14 +38,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class CartControllerIntegrationTest {
-    @Autowired private MockMvc mockMvc;
-    @Autowired private ObjectMapper objectMapper;
-    @Autowired private UserRepository userRepository;
-    @Autowired private ProductRepository productRepository;
-    @Autowired private CartRepository cartRepository;
-    @Autowired private CategoryRepository categoryRepository;
-    @Autowired private BCryptPasswordEncoder passwordEncoder;
-    @Autowired private JwtTokenUtil jwtTokenUtil;
+    @Autowired
+    private MockMvc mockMvc;
+    @Autowired
+    private ObjectMapper objectMapper;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private ProductRepository productRepository;
+    @Autowired
+    private CartRepository cartRepository;
+    @Autowired
+    private CategoryRepository categoryRepository;
+    @Autowired
+    private BCryptPasswordEncoder passwordEncoder;
+    @Autowired
+    private JwtTokenUtil jwtTokenUtil;
 
     private String jwtToken;
 
@@ -54,9 +63,9 @@ class CartControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
-         // Create password using bcrypt
-         String password = "password";
-         String passwordHash = passwordEncoder.encode(password);
+        // Create password using bcrypt
+        String password = "password";
+        String passwordHash = passwordEncoder.encode(password);
 
         // Setup user
         user = User.builder()
@@ -78,8 +87,9 @@ class CartControllerIntegrationTest {
         // Setup product
         product = Product.builder()
                 .name("Product1")
-                .stock(10)
+                .quantity(10)
                 .price(new BigDecimal(10000))
+                .weight(1000)
                 .category(category)
                 .build();
         productRepository.save(product);
@@ -122,15 +132,16 @@ class CartControllerIntegrationTest {
     }
 
     @Test
-    void addItemToCart_insufficientStock_error() throws Exception {
+    void addItemToCart_insufficientQuantity_error() throws Exception {
         AddCartItemRequest req = new AddCartItemRequest();
         req.setProductId(product.getId());
-        req.setQuantity(20); // more than stock
+        req.setQuantity(20); // more than available
         mockMvc.perform(authenticated(post("/v1/cart/items"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Insufficient quantity: only 10 left"));
     }
 
     @Test

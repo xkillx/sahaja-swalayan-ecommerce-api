@@ -1,5 +1,7 @@
 package com.sahaja.swalayan.ecommerce.application.service;
 
+import com.sahaja.swalayan.ecommerce.common.CategoryNotFoundException;
+
 import com.sahaja.swalayan.ecommerce.common.EntityNotFoundException;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Category;
 import com.sahaja.swalayan.ecommerce.domain.service.CategoryService;
@@ -27,7 +29,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public Category findById(UUID id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Category not found with id: " + id));
+                .orElseThrow(() -> new CategoryNotFoundException("Category does not exist for id: " + id));
     }
 
     @Override
@@ -46,7 +48,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public Category update(UUID id, Category category) {
         Category existing = categoryRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Category not found with id: " + id));
+                .orElseThrow(() -> new CategoryNotFoundException("Category does not exist for id: " + id));
         existing.setName(category.getName());
         existing.setDescription(category.getDescription());
         return categoryRepository.save(existing);
@@ -55,6 +57,6 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public Category findByName(String name) {
         return categoryRepository.findByName(name)
-                .orElseThrow(() -> new EntityNotFoundException("Category not found with name: " + name));
+                .orElseThrow(() -> new CategoryNotFoundException("Category does not exist for name: " + name));
     }
 }

@@ -19,8 +19,9 @@ import io.jsonwebtoken.JwtException;
 public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleAllExceptions(Exception ex, WebRequest request) {
-        log.error("Exception: {}", ex.getMessage());
+        log.error("[GlobalExceptionHandler] Uncaught exception", ex);
         ApiResponse<?> error = ApiResponse.error("An unexpected error occurred: " + ex.getMessage());
+        // Optionally, set a timestamp or errorId here if your ApiResponse supports it
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
@@ -47,13 +48,21 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+    // Handle InsufficientQuantityException as 409 Conflict
+    @ExceptionHandler(InsufficientQuantityException.class)
+    public ResponseEntity<ApiResponse<?>> handleInsufficientQuantity(InsufficientQuantityException ex, WebRequest request) {
+        log.warn("Conflict (InsufficientQuantityException): {}", ex.getMessage());
+        ApiResponse<?> error = ApiResponse.error(ex.getMessage());
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
     // Handle all BAD_REQUEST exceptions
     @ExceptionHandler({
-        InsufficientStockException.class,
         InvalidConfirmationTokenException.class,
         InvalidPaymentMethodException.class,
         InvalidXenditPayloadException.class,
-        JwtException.class
+        JwtException.class,
+        CategoryNotFoundException.class
     })
     public ResponseEntity<ApiResponse<?>> handleBadRequest(Exception ex, WebRequest request) {
         log.error("Bad Request ({}): {}", ex.getClass().getSimpleName(), ex.getMessage());
@@ -98,6 +107,7 @@ public class GlobalExceptionHandler {
         if (message.endsWith(";")) {
             message = message.substring(0, message.length() - 1);
         }
+        log.error("Validation failed: {}", message);
         ApiResponse<?> error = ApiResponse.error(message);
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }

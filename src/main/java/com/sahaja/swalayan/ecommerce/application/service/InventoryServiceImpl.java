@@ -3,7 +3,7 @@ package com.sahaja.swalayan.ecommerce.application.service;
 import com.sahaja.swalayan.ecommerce.domain.model.cart.CartItem;
 import com.sahaja.swalayan.ecommerce.domain.repository.ProductRepository;
 import com.sahaja.swalayan.ecommerce.domain.service.InventoryService;
-import com.sahaja.swalayan.ecommerce.common.InsufficientStockException;
+import com.sahaja.swalayan.ecommerce.common.InsufficientQuantityException;
 import com.sahaja.swalayan.ecommerce.common.ProductNotFoundException;
 import org.springframework.stereotype.Service;
 import java.util.Set;
@@ -31,17 +31,21 @@ public class InventoryServiceImpl implements InventoryService {
                 throw new ProductNotFoundException("Product not found: " + productId);
             }
             var product = productOpt.get();
-            int availableStock = product.getStock();
-            log.debug("Checking stock for productId={}, name={}, requested={}, available={}", productId, product.getName(), quantityRequested, availableStock);
-            if (availableStock < quantityRequested) {
-                log.warn("Insufficient stock for productId={}, name={}, requested={}, available={}", productId, product.getName(), quantityRequested, availableStock);
-                throw new InsufficientStockException(
-                        "Insufficient stock for product " + product.getName() + " (ID: " + productId + ") - requested: "
-                                + quantityRequested + ", available: " + availableStock);
+            int availableQuantity = product.getQuantity();
+            log.debug("Checking quantity for productId={}, name={}, requested={}, available={}", productId,
+                    product.getName(), quantityRequested, availableQuantity);
+            if (availableQuantity < quantityRequested) {
+                log.warn("Insufficient quantity for productId={}, name={}, requested={}, available={}", productId,
+                        product.getName(), quantityRequested, availableQuantity);
+                throw new InsufficientQuantityException(
+                        "Insufficient quantity for product " + product.getName() + " (ID: " + productId
+                                + ") - requested: "
+                                + quantityRequested + ", available: " + availableQuantity);
             }
-            product.setStock(availableStock - quantityRequested);
+            product.setQuantity(availableQuantity - quantityRequested);
             productRepository.save(product);
-            log.debug("Reserved {} units for productId={}, new stock={}", quantityRequested, productId, product.getStock());
+            log.debug("Reserved {} units for productId={}, new quantity={}", quantityRequested, productId,
+                    product.getQuantity());
         }
     }
 }
