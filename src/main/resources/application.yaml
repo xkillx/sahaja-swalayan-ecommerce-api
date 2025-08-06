@@ -29,6 +29,11 @@ spring:
         use_sql_comments: true
         highlight_sql: true
         type: trace
+  cache:
+    type: caffeine
+    cache-names: default
+    caffeine:
+      spec: maximumSize=500,expireAfterWrite=24h
 
 # Email Configuration
 email:
@@ -56,6 +61,11 @@ xendit:
   base-url: ${XENDIT_BASE_URL:https://api.xendit.co}
   success-redirect-url: ${XENDIT_SUCCESS_REDIRECT_URL:https://yourdomain.com/payment/success}
   callback-token: ${XENDIT_CALLBACK_TOKEN:cb_token_livekey_9xsWcG5XEwLj2DcZxDq7P0vJxngE1bW28m6V1CulTzr0JVqP7V}
+
+# Biteship Shipping API Configuration
+biteship:
+  api-key: ${BITESHIP_API_KEY:biteship_test.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoidG9rZW4yQXVndXN0MjAyNSIsInVzZXJJZCI6IjY4ODk1OGFjZDUzNDAyMDAxMjEyNDIzZiIsImlhdCI6MTc1NDE0MjkwMH0.ldmRCss83tQmqc6vhomF-dMowTz9rkjLqFt01lsLGJo}
+  base-url: ${BITESHIP_BASE_URL:https://api.biteship.com}
 
 # Application Configuration
 app:
