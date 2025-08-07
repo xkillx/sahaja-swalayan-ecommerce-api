@@ -1,6 +1,7 @@
 package com.sahaja.swalayan.ecommerce.common;
 
 import com.sahaja.swalayan.ecommerce.application.dto.ApiResponse;
+import com.sahaja.swalayan.ecommerce.common.exception.AddressNotFoundException;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -10,29 +11,42 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 
 import io.jsonwebtoken.JwtException;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleAllExceptions(Exception ex, WebRequest request) {
-        log.error("[GlobalExceptionHandler] Uncaught exception", ex);
+        // Log the full stack trace with the message
+        log.error("[GlobalExceptionHandler] Uncaught exception: {}", ex.getMessage(), ex);
+
+        // Optionally, include contextual info
+        if (request instanceof ServletWebRequest servletRequest) {
+            HttpServletRequest httpRequest = servletRequest.getRequest();
+            log.error("[GlobalExceptionHandler] Request info: method={}, uri={}, remoteAddr={}",
+                    httpRequest.getMethod(),
+                    httpRequest.getRequestURI(),
+                    httpRequest.getRemoteAddr());
+        }
+
         ApiResponse<?> error = ApiResponse.error("An unexpected error occurred: " + ex.getMessage());
-        // Optionally, set a timestamp or errorId here if your ApiResponse supports it
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     // Handle all NOT_FOUND exceptions
     @ExceptionHandler({
-        EntityNotFoundException.class,
-        ProductNotFoundException.class,
-        CartItemNotFoundException.class,
-        CartNotFoundException.class,
-        PaymentNotFoundException.class,
-        OrderNotFoundException.class
+            EntityNotFoundException.class,
+            ProductNotFoundException.class,
+            CartItemNotFoundException.class,
+            CartNotFoundException.class,
+            PaymentNotFoundException.class,
+            OrderNotFoundException.class,
+            AddressNotFoundException.class
     })
     public ResponseEntity<ApiResponse<?>> handleNotFound(RuntimeException ex, WebRequest request) {
         log.error("Not Found: {}", ex.getMessage());
@@ -50,19 +64,20 @@ public class GlobalExceptionHandler {
 
     // Handle InsufficientQuantityException as 409 Conflict
     @ExceptionHandler(InsufficientQuantityException.class)
-    public ResponseEntity<ApiResponse<?>> handleInsufficientQuantity(InsufficientQuantityException ex, WebRequest request) {
-        log.warn("Conflict (InsufficientQuantityException): {}", ex.getMessage());
+    public ResponseEntity<ApiResponse<?>> handleInsufficientQuantity(InsufficientQuantityException ex,
+            WebRequest request) {
+        log.error("Conflict (InsufficientQuantityException): {}", ex.getMessage());
         ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
     // Handle all BAD_REQUEST exceptions
     @ExceptionHandler({
-        InvalidConfirmationTokenException.class,
-        InvalidPaymentMethodException.class,
-        InvalidXenditPayloadException.class,
-        JwtException.class,
-        CategoryNotFoundException.class
+            InvalidConfirmationTokenException.class,
+            InvalidPaymentMethodException.class,
+            InvalidXenditPayloadException.class,
+            JwtException.class,
+            CategoryNotFoundException.class
     })
     public ResponseEntity<ApiResponse<?>> handleBadRequest(Exception ex, WebRequest request) {
         log.error("Bad Request ({}): {}", ex.getClass().getSimpleName(), ex.getMessage());
@@ -85,10 +100,11 @@ public class GlobalExceptionHandler {
         ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
     }
-    
+
     // Handle UNAUTHORIZED for webhook token validation
     @ExceptionHandler(InvalidXenditWebhookException.class)
-    public ResponseEntity<ApiResponse<?>> handleUnauthorizedWebhook(InvalidXenditWebhookException ex, WebRequest request) {
+    public ResponseEntity<ApiResponse<?>> handleUnauthorizedWebhook(InvalidXenditWebhookException ex,
+            WebRequest request) {
         log.error("Unauthorized webhook request: {}", ex.getMessage());
         ApiResponse<?> error = ApiResponse.error("Webhook authentication failed: " + ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
