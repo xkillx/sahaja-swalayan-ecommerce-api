@@ -86,8 +86,8 @@ public class GlobalExceptionHandler {
     }
 
     // Handle CONFLICT
-    @ExceptionHandler(EmailAlreadyRegisteredException.class)
-    public ResponseEntity<ApiResponse<?>> handleConflict(EmailAlreadyRegisteredException ex, WebRequest request) {
+    @ExceptionHandler({EmailAlreadyRegisteredException.class, CategoryNameAlreadyExistsException.class})
+    public ResponseEntity<ApiResponse<?>> handleConflict(RuntimeException ex, WebRequest request) {
         log.error("Conflict: {}", ex.getMessage());
         ApiResponse<?> error = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);

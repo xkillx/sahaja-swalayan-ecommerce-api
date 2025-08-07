@@ -105,6 +105,26 @@ public class CategoryControllerIntegrationTest {
     }
 
     @Test
+    void testCreateDuplicateCategoryName() {
+        // Create first category
+        CategoryDTO cat1 = CategoryDTO.builder().name("UniqueCategory").description("desc").build();
+        ResponseEntity<CategoryDTO> response1 = restTemplate.postForEntity(getBaseUrl(), cat1, CategoryDTO.class);
+        assertThat(response1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        CategoryDTO created = response1.getBody();
+        assertThat(created).isNotNull();
+        assertThat(created.getName()).isEqualTo("UniqueCategory");
+
+        // Attempt to create duplicate
+        CategoryDTO cat2 = CategoryDTO.builder().name("UniqueCategory").description("another desc").build();
+        ResponseEntity<String> response2 = restTemplate.postForEntity(getBaseUrl(), cat2, String.class);
+        assertThat(response2.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response2.getBody()).contains("Category name already exists");
+
+        // Cleanup
+        restTemplate.delete(getBaseUrl() + "/" + created.getId());
+    }
+
+    @Test
     void testCreateCategoryValidationErrors() {
         // Create an invalid CategoryDTO (blank name)
         CategoryDTO invalidCategory = CategoryDTO.builder().name("").description("desc").build();
