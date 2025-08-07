@@ -14,8 +14,8 @@ Sahaja Swalayan eCommerce API is a robust, production-ready backend for online r
 - **Product Catalog**  
   CRUD operations for products with detailed attributes and search functionality.
 
-- **Category Management**  
-  Category CRUD with dependency checks and search.
+- **Address Management**  
+  Add, update, delete, and manage user shipping addresses for orders and deliveries.
 
 - **Cart & Order Management**  
   (Planned/Extendable) Shopping cart and order processing endpoints.
@@ -28,6 +28,12 @@ Sahaja Swalayan eCommerce API is a robust, production-ready backend for online r
 
 - **Pluggable Email Service**  
   Provider-agnostic email sending (Mailtrap out-of-the-box).
+
+- **Xendit Payment Integration**  
+  Seamless payment gateway integration for handling online transactions (credit card, e-wallet, virtual accounts, etc.).
+
+- **BiteShip Shipping Integration**  
+  Automated shipping calculation, tracking, and label generation with BiteShip API.
 
 - **Database Migrations**  
   Schema versioning and migrations via Flyway.
@@ -46,6 +52,8 @@ Sahaja Swalayan eCommerce API is a robust, production-ready backend for online r
 - **Swagger/OpenAPI** (API docs)
 - **JUnit & MockMvc** (Testing)
 - **Mailtrap** (Email sandbox)
+- **Xendit** (Payment gateway)
+- **BitShip** (Shipping integration)
 
 ---
 
