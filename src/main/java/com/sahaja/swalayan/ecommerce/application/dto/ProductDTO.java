@@ -13,6 +13,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Getter
 @Setter
@@ -36,7 +37,7 @@ public class ProductDTO {
     @Min(value = 1, message = "Quantity must be greater than 0")
     private Integer quantity;
 
-    @NotNull(message = "Category is required")
+    @JsonProperty("category_id")
     private UUID categoryId;
 
     private String imageUrl;

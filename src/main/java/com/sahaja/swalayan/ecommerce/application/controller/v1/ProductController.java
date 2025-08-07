@@ -7,6 +7,8 @@ import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
 import com.sahaja.swalayan.ecommerce.domain.service.CategoryService;
 import com.sahaja.swalayan.ecommerce.domain.service.ProductService;
 import com.sahaja.swalayan.ecommerce.domain.service.FileStorageService;
+import com.sahaja.swalayan.ecommerce.common.CategoryNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import com.sahaja.swalayan.ecommerce.infrastructure.swagger.*;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping(value = "/v1/products")
 @ApiProductController
+@Slf4j
 public class ProductController {
 
     private final ProductService productService;
@@ -57,7 +60,19 @@ public class ProductController {
     @ApiCreateProductOperation
     public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody ProductDTO productDTO) {
         Product product = productMapper.toEntity(productDTO);
-        Category category = categoryService.findById(productDTO.getCategoryId());
+        UUID categoryId = productDTO.getCategoryId();
+        Category category;
+        if (categoryId == null) {
+            // Assign default 'Uncategorised' category
+            category = categoryService.findById(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+        } else {
+            try {
+                category = categoryService.findById(categoryId);
+            } catch (CategoryNotFoundException ex) {
+                log.error("Product creation failed: categoryId {} not found", categoryId);
+                throw new CategoryNotFoundException("Invalid categoryId supplied: " + categoryId);
+            }
+        }
         product.setCategory(category);
         Product savedProduct = productService.save(product);
         ProductDTO savedProductDTO = productMapper.toDto(savedProduct);

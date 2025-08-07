@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -49,49 +49,12 @@ public class ProductControllerIntegrationTest {
     private final List<UUID> productsToCleanup = new ArrayList<>();
     private final List<Path> imagesToCleanup = new ArrayList<>();
 
-    @AfterEach
-    void cleanUp() {
-        for (UUID productId : productsToCleanup) {
-            if (productId == null) {
-                log.warn("[cleanUp] Skipping null productId");
-                continue;
-            }
-            try {
-                restTemplate.delete(getBaseUrl() + "/" + productId);
-                log.debug("[cleanUp] Deleted product: {}", productId);
-            } catch (Exception e) {
-                log.warn("[cleanUp] Failed to delete product {}: {}", productId, e.getMessage());
-                // Optionally, try to fetch product to see if it still exists
-                try {
-                    ResponseEntity<?> resp = restTemplate.getForEntity(getBaseUrl() + "/" + productId, Object.class);
-                    log.warn("[cleanUp] Product {} still exists after delete attempt. Status: {}", productId, resp.getStatusCode());
-                } catch (Exception ex) {
-                    log.info("[cleanUp] Product {} confirmed deleted (not found)", productId);
-                }
-            }
-        }
-        productsToCleanup.clear();
-        for (Path imagePath : imagesToCleanup) {
-            if (imagePath == null) {
-                log.warn("[cleanUp] Skipping null imagePath");
-                continue;
-            }
-            try {
-                Files.deleteIfExists(imagePath);
-                log.debug("[cleanUp] Deleted image: {}", imagePath);
-            } catch (Exception e) {
-                log.warn("[cleanUp] Failed to delete image {}: {}", imagePath, e.getMessage());
-            }
-        }
-        imagesToCleanup.clear();
-    }
-
     private UUID testCategoryId;
     private final String testCategoryName = "TestCategoryForProduct";
 
-    @BeforeAll
+    @BeforeEach
     void setUpCategory() {
-        // Create category
+        // Create new test category
         String categoryUrl = "http://localhost:" + port + "/api/v1/categories";
         CategoryDTO categoryDTO = CategoryDTO.builder()
                 .name(testCategoryName)
@@ -101,14 +64,49 @@ public class ProductControllerIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         testCategoryId = response.getBody().getId();
+        log.debug("[setUpCategory] Created test category: {}", testCategoryId);
     }
 
-    @AfterAll
-    void tearDownCategory() {
-        // Delete category
+    @AfterEach
+    void cleanUpResources() {
+        // Clean up products
+        for (UUID productId : productsToCleanup) {
+            if (productId == null) {
+                log.warn("[cleanUpResources] Skipping null productId");
+                continue;
+            }
+            try {
+                restTemplate.delete(getBaseUrl() + "/" + productId);
+                log.debug("[cleanUpResources] Deleted product: {}", productId);
+            } catch (Exception e) {
+                log.warn("[cleanUpResources] Failed to delete product {}: {}", productId, e.getMessage());
+            }
+        }
+        productsToCleanup.clear();
+        // Clean up images
+        for (Path imagePath : imagesToCleanup) {
+            if (imagePath == null) {
+                log.warn("[cleanUpResources] Skipping null imagePath");
+                continue;
+            }
+            try {
+                Files.deleteIfExists(imagePath);
+                log.debug("[cleanUpResources] Deleted image: {}", imagePath);
+            } catch (Exception e) {
+                log.warn("[cleanUpResources] Failed to delete image {}: {}", imagePath, e.getMessage());
+            }
+        }
+        imagesToCleanup.clear();
+        // Clean up test category
         if (testCategoryId != null) {
-            String deleteUrl = "http://localhost:" + port + "/api/v1/categories/" + testCategoryId;
-            restTemplate.delete(deleteUrl);
+            try {
+                String deleteUrl = "http://localhost:" + port + "/api/v1/categories/" + testCategoryId;
+                restTemplate.delete(deleteUrl);
+                log.debug("[cleanUpResources] Deleted test category: {}", testCategoryId);
+            } catch (Exception e) {
+                log.warn("[cleanUpResources] Failed to delete test category {}: {}", testCategoryId, e.getMessage());
+            }
+            testCategoryId = null;
         }
     }
 
@@ -124,9 +122,8 @@ public class ProductControllerIntegrationTest {
 
     @Test
     @Order(1)
-    void testCreateAndGetProduct() {
-        log.debug("[testCreateAndGetProduct] Start");
-        // Create product
+    void testCreateProductWithCategory() {
+        log.debug("[testCreateProductWithCategory] Start");
         ProductDTO productDTO = ProductDTO.builder()
                 .name("Test Product")
                 .description("Test Desc")
@@ -136,44 +133,51 @@ public class ProductControllerIntegrationTest {
                 .categoryId(testCategoryId)
                 .build();
 
-        log.debug("[testCreateAndGetProduct] Creating product: {}", productDTO);
-        ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
-        log.debug("[testCreateAndGetProduct] Create response: status={}, body={}", createResponse.getStatusCode(), createResponse.getBody());
-
+        ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO,
+                ProductDTO.class);
         assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ProductDTO created = createResponse.getBody();
-        if (created == null) {
-            log.error("[testCreateAndGetProduct] Product creation failed, response body is null! Full response: {}", createResponse);
-            fail("Product creation failed: response body is null");
-        }
-        if (created.getId() == null) {
-            log.error("[testCreateAndGetProduct] Product creation failed, ID is null! ProductDTO: {}", created);
-            fail("Product creation failed: ID is null");
-        }
-        log.debug("[testCreateAndGetProduct] Product created: {}", created);
+        assertThat(created).isNotNull();
+        assertThat(created.getId()).isNotNull();
         assertThat(created.getName()).isEqualTo("Test Product");
-
-        // Get product by id
-        log.debug("[testCreateAndGetProduct] Fetching product by id: {}", created.getId());
-        ResponseEntity<ProductDTO> getResponse = restTemplate.getForEntity(getBaseUrl() + "/" + created.getId(), ProductDTO.class);
-        assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        ProductDTO fetched = getResponse.getBody();
-        if (fetched == null) {
-            log.error("[testCreateAndGetProduct] Fetched product is null! Response: {}", getResponse);
-            fail("Fetched product is null");
-        }
-        log.debug("[testCreateAndGetProduct] Product fetched: {}", fetched);
-        assertThat(fetched.getId()).isEqualTo(created.getId());
-        assertThat(fetched.getName()).isEqualTo("Test Product");
-
-        // mark product for cleanup
-        log.debug("[testCreateAndGetProduct] Marking product for cleanup: {}", created.getId());
+        assertThat(created.getDescription()).isEqualTo("Test Desc");
+        assertThat(created.getPrice()).isEqualTo(new BigDecimal("19.99"));
+        assertThat(created.getQuantity()).isEqualTo(10);
+        assertThat(created.getWeight()).isEqualTo(5);
+        assertThat(created.getCategoryId()).isEqualTo(testCategoryId);
         productsToCleanup.add(created.getId());
-        log.debug("[testCreateAndGetProduct] End");
+        log.debug("[testCreateProductWithCategory] End");
     }
 
     @Test
     @Order(2)
+    void testCreateProductWithUncategorised() {
+        log.debug("[testCreateProductWithUncategorised] Start");
+        ProductDTO noCategoryProduct = ProductDTO.builder()
+                .name("No Category Product")
+                .description("No cat")
+                .price(new BigDecimal("9.99"))
+                .quantity(3)
+                .weight(1)
+                .build();
+        ResponseEntity<ProductDTO> noCatResponse = restTemplate.postForEntity(getBaseUrl(), noCategoryProduct,
+                ProductDTO.class);
+        assertThat(noCatResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        ProductDTO noCatCreated = noCatResponse.getBody();
+        assertThat(noCatCreated).isNotNull();
+        assertThat(noCatCreated.getId()).isNotNull();
+        assertThat(noCatCreated.getName()).isEqualTo("No Category Product");
+        assertThat(noCatCreated.getDescription()).isEqualTo("No cat");
+        assertThat(noCatCreated.getPrice()).isEqualTo(new BigDecimal("9.99"));
+        assertThat(noCatCreated.getQuantity()).isEqualTo(3);
+        assertThat(noCatCreated.getWeight()).isEqualTo(1);
+        assertThat(noCatCreated.getCategoryId()).isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+        productsToCleanup.add(noCatCreated.getId());
+        log.debug("[testCreateProductWithUncategorised] End");
+    }
+
+    @Test
+    @Order(3)
     void testGetNotFound() {
         UUID randomId = UUID.randomUUID();
         ResponseEntity<String> response = restTemplate.getForEntity(getBaseUrl() + "/" + randomId, String.class);
@@ -182,7 +186,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
-    @Order(3)
+    @Order(4)
     void testGetAllProducts() {
         // save 2 products
         ProductDTO product1 = ProductDTO.builder()
@@ -217,18 +221,18 @@ public class ProductControllerIntegrationTest {
 
     // test update product
     @Test
-    @Order(4)
+    @Order(5)
     void testUpdateProduct() {
-        // save 1 product
-        ProductDTO product = ProductDTO.builder()
-                .name("Product 1")
-                .description("Description 1")
-                .price(new BigDecimal("19.99"))
-                .quantity(10)
+        // Create a product with no category (should default to Uncategorised)
+        ProductDTO uncategorisedProduct = ProductDTO.builder()
+                .name("Uncat Product")
+                .description("Uncategorised")
+                .price(new BigDecimal("5.00"))
+                .quantity(2)
                 .weight(1)
-                .categoryId(testCategoryId)
                 .build();
-        ProductDTO savedProduct = restTemplate.postForEntity(getBaseUrl(), product, ProductDTO.class).getBody();
+        ProductDTO savedProduct = restTemplate.postForEntity(getBaseUrl(), uncategorisedProduct, ProductDTO.class)
+                .getBody();
 
         // update product
         ProductDTO updatedProduct = ProductDTO.builder()
@@ -247,6 +251,8 @@ public class ProductControllerIntegrationTest {
         assertThat(response.getBody().getDescription()).isEqualTo("Updated Description 1");
         assertThat(response.getBody().getPrice()).isEqualTo(new BigDecimal("29.99"));
         assertThat(response.getBody().getQuantity()).isEqualTo(20);
+        assertThat(response.getBody().getWeight()).isEqualTo(2);
+        assertThat(response.getBody().getCategoryId()).isEqualTo(testCategoryId);
 
         // delete product after test
         restTemplate.delete(getBaseUrl() + "/" + savedProduct.getId());
@@ -254,7 +260,7 @@ public class ProductControllerIntegrationTest {
 
     // test delete product
     @Test
-    @Order(5)
+    @Order(6)
     void testDeleteProduct() {
         // save 1 product
         ProductDTO product = ProductDTO.builder()
@@ -274,7 +280,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     void testCreateProductWithInvalidCategory() {
         // Use a random UUID for categoryId that does not exist
         UUID invalidCategoryId = UUID.randomUUID();
@@ -288,13 +294,14 @@ public class ProductControllerIntegrationTest {
                 .build();
 
         ResponseEntity<String> response = restTemplate.postForEntity(getBaseUrl(), product, String.class);
-        // Acceptable: BAD_REQUEST or NOT_FOUND depending on implementation
-        assertThat(response.getStatusCode().is4xxClientError()).isTrue();
-        assertThat(response.getBody()).containsIgnoringCase("category");
+        // Should return 400 BAD_REQUEST with ApiResponse error
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).contains("Invalid categoryId supplied");
+        assertThat(response.getBody()).contains("success").contains("false");
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     void testCreateProductWithMalformedJson() {
         // Intentionally malformed JSON (missing closing brace)
         String malformedJson = "{\"name\": \"Bad Product\", \"price\": 10.00, ";
@@ -308,7 +315,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     void testCreateProductValidationErrors() {
         // Create an invalid ProductDTO (blank name, negative price, null stock, null
         // category)
@@ -327,15 +334,15 @@ public class ProductControllerIntegrationTest {
         assertThat(responseBody).contains("Product name is required");
         assertThat(responseBody).contains("Price must be greater than 0");
         assertThat(responseBody).contains("Quantity is required");
-        assertThat(responseBody).contains("Weight is required");
-        assertThat(responseBody).contains("Category is required");
+        assertThat(responseBody).contains("Weight is required"); // category is now optional, do not assert
+
         // Optionally, check that no unexpected errors are present (if your API returns
         // just these messages)
         // Example: assertThat(responseBody).doesNotContain("Unexpected error");
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     void testUploadProductImage() throws Exception {
         log.debug("[testUploadProductImage] Start");
         // Create a product first
@@ -347,7 +354,8 @@ public class ProductControllerIntegrationTest {
                 .weight(1)
                 .categoryId(testCategoryId)
                 .build();
-        ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
+        ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO,
+                ProductDTO.class);
         assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ProductDTO created = createResponse.getBody();
         assertThat(created).isNotNull();
@@ -361,13 +369,15 @@ public class ProductControllerIntegrationTest {
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(parts, headers);
 
-        ResponseEntity<ProductDTO> uploadResponse = restTemplate.postForEntity(uploadUrl, requestEntity, ProductDTO.class);
+        ResponseEntity<ProductDTO> uploadResponse = restTemplate.postForEntity(uploadUrl, requestEntity,
+                ProductDTO.class);
         assertThat(uploadResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         ProductDTO updated = uploadResponse.getBody();
         assertThat(updated).isNotNull();
         assertThat(updated.getImageUrl()).isNotBlank();
         // Optionally: check that the file exists on disk
-        Path imagePath = Paths.get("uploads/products/", updated.getImageUrl().substring(updated.getImageUrl().lastIndexOf("/") + 1));
+        Path imagePath = Paths.get("uploads/products/",
+                updated.getImageUrl().substring(updated.getImageUrl().lastIndexOf("/") + 1));
         log.debug("[testUploadProductImage] Image stored at: {}", imagePath);
         assertThat(Files.exists(imagePath)).isTrue();
 
@@ -378,7 +388,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     void testRetrieveProductImageUrlAfterUpload() throws Exception {
         log.debug("[testRetrieveProductImageUrlAfterUpload] Start");
         UUID productId = null;
@@ -393,7 +403,8 @@ public class ProductControllerIntegrationTest {
                     .weight(1)
                     .categoryId(testCategoryId)
                     .build();
-            ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
+            ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO,
+                    ProductDTO.class);
             assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
             ProductDTO created = createResponse.getBody();
             assertThat(created).isNotNull();
@@ -409,21 +420,25 @@ public class ProductControllerIntegrationTest {
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(parts, headers);
 
-            ResponseEntity<ProductDTO> uploadResponse = restTemplate.postForEntity(uploadUrl, requestEntity, ProductDTO.class);
+            ResponseEntity<ProductDTO> uploadResponse = restTemplate.postForEntity(uploadUrl, requestEntity,
+                    ProductDTO.class);
             assertThat(uploadResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
             ProductDTO updated = uploadResponse.getBody();
             assertThat(updated).isNotNull();
             assertThat(updated.getImageUrl()).isNotBlank();
-            imagePath = Paths.get("uploads/products/", updated.getImageUrl().substring(updated.getImageUrl().lastIndexOf("/") + 1));
+            imagePath = Paths.get("uploads/products/",
+                    updated.getImageUrl().substring(updated.getImageUrl().lastIndexOf("/") + 1));
             imagesToCleanup.add(imagePath);
 
             // Retrieve product and verify imageUrl is present
             log.debug("[testRetrieveProductImageUrlAfterUpload] Retrieving product to verify imageUrl");
-            ResponseEntity<ProductDTO> getResponse = restTemplate.getForEntity(getBaseUrl() + "/" + productId, ProductDTO.class);
+            ResponseEntity<ProductDTO> getResponse = restTemplate.getForEntity(getBaseUrl() + "/" + productId,
+                    ProductDTO.class);
             assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
             ProductDTO fetched = getResponse.getBody();
             assertThat(fetched).isNotNull();
-            log.debug("[testRetrieveProductImageUrlAfterUpload] Verified imageUrl matches uploaded: {}", fetched.getImageUrl());
+            log.debug("[testRetrieveProductImageUrlAfterUpload] Verified imageUrl matches uploaded: {}",
+                    fetched.getImageUrl());
             assertThat(fetched.getImageUrl()).isEqualTo(updated.getImageUrl());
         } catch (Exception e) {
             log.error("[testRetrieveProductImageUrlAfterUpload] Test failed, cleanup registered: {}", e.getMessage());
@@ -433,7 +448,7 @@ public class ProductControllerIntegrationTest {
     }
 
     @Test
-    @Order(11)
+    @Order(12)
     void testStaticServingOfProductImage() throws Exception {
         log.debug("[testStaticServingOfProductImage] Start");
         UUID productId = null;
@@ -448,7 +463,8 @@ public class ProductControllerIntegrationTest {
                     .weight(1)
                     .categoryId(testCategoryId)
                     .build();
-            ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO, ProductDTO.class);
+            ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO,
+                    ProductDTO.class);
             assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
             ProductDTO created = createResponse.getBody();
             assertThat(created).isNotNull();
@@ -464,12 +480,14 @@ public class ProductControllerIntegrationTest {
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(parts, headers);
 
-            ResponseEntity<ProductDTO> uploadResponse = restTemplate.postForEntity(uploadUrl, requestEntity, ProductDTO.class);
+            ResponseEntity<ProductDTO> uploadResponse = restTemplate.postForEntity(uploadUrl, requestEntity,
+                    ProductDTO.class);
             assertThat(uploadResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
             ProductDTO updated = uploadResponse.getBody();
             assertThat(updated).isNotNull();
             assertThat(updated.getImageUrl()).isNotBlank();
-            imagePath = Paths.get("uploads/products/", updated.getImageUrl().substring(updated.getImageUrl().lastIndexOf("/") + 1));
+            imagePath = Paths.get("uploads/products/",
+                    updated.getImageUrl().substring(updated.getImageUrl().lastIndexOf("/") + 1));
             imagesToCleanup.add(imagePath);
 
             // Fetch the image via static resource URL
