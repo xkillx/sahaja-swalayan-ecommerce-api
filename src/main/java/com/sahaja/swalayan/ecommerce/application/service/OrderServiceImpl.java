@@ -21,6 +21,9 @@ import lombok.extern.slf4j.Slf4j;
 import com.sahaja.swalayan.ecommerce.common.CartEmptyException;
 import com.sahaja.swalayan.ecommerce.common.ForbiddenException;
 import com.sahaja.swalayan.ecommerce.common.OrderNotFoundException;
+import com.sahaja.swalayan.ecommerce.domain.model.user.Address;
+import com.sahaja.swalayan.ecommerce.domain.repository.user.AddressRepository;
+import com.sahaja.swalayan.ecommerce.common.exception.AddressNotFoundException;
 
 @Service
 @Slf4j
@@ -29,21 +32,31 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemRepository orderItemRepository;
     private final CartServiceImpl cartService;
     private final InventoryService inventoryService;
+    private final AddressRepository addressRepository;
 
     public OrderServiceImpl(OrderRepository orderRepository, OrderItemRepository orderItemRepository,
-            CartServiceImpl cartService, InventoryService inventoryService) {
+            CartServiceImpl cartService, InventoryService inventoryService, AddressRepository addressRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.cartService = cartService;
         this.inventoryService = inventoryService;
+        this.addressRepository = addressRepository;
         log.debug("OrderServiceImpl initialized");
     }
 
     @Override
     @Transactional
-    public Order createOrderFromCart(UUID userId, String shippingAddress, PaymentMethod paymentMethod) {
-        log.debug("Creating order for userId={}, shippingAddress={}, paymentMethod={}", userId, shippingAddress,
+    public Order createOrderFromCart(UUID userId, UUID addressId, PaymentMethod paymentMethod) {
+        log.debug("Creating order for userId={}, addressId={}, paymentMethod={}", userId, addressId,
                 paymentMethod);
+
+        // 0. Validate address exists and belongs to the user
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new AddressNotFoundException("Address not found: " + addressId));
+        if (!userId.equals(address.getUserId())) {
+            log.warn("User {} attempted to use address {} that does not belong to them (owner: {})", userId, addressId, address.getUserId());
+            throw new ForbiddenException("Address does not belong to user");
+        }
 
         // 1. Fetch the cart items for the user
         Cart cart = cartService.getCartForUser(userId);
@@ -73,7 +86,7 @@ public class OrderServiceImpl implements OrderService {
                 .orderDate(LocalDateTime.now())
                 .totalAmount(totalAmount)
                 .status(Status.PENDING)
-                .shippingAddress(shippingAddress)
+                .shippingAddress(address)
                 .paymentMethod(paymentMethod)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())

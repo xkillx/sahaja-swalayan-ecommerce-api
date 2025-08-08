@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import com.sahaja.swalayan.ecommerce.domain.model.user.Address;
 
 @Entity
 @Table(name = "orders")
@@ -37,8 +38,9 @@ public class Order {
     @Column(nullable = false)
     private Status status;
 
-    @Column(nullable = false, length = 500)
-    private String shippingAddress;
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "shipping_address_id", nullable = false)
+    private Address shippingAddress;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 100)

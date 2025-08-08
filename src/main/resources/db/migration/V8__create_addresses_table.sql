@@ -17,3 +17,8 @@ CREATE TABLE addresses (
 );
 
 CREATE INDEX idx_addresses_user_id ON addresses(user_id);
+
+-- Now that addresses exists, add FK from orders to addresses
+ALTER TABLE orders
+    ADD CONSTRAINT fk_orders_shipping_address
+    FOREIGN KEY (shipping_address_id) REFERENCES addresses(id);

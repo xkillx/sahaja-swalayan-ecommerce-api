@@ -10,6 +10,8 @@ import com.sahaja.swalayan.ecommerce.domain.model.user.UserStatus;
 import com.sahaja.swalayan.ecommerce.domain.repository.*;
 import com.sahaja.swalayan.ecommerce.domain.repository.cart.CartRepository;
 import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
+import com.sahaja.swalayan.ecommerce.domain.model.user.Address;
+import com.sahaja.swalayan.ecommerce.domain.repository.user.AddressRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -38,11 +40,13 @@ class OrderControllerIntegrationTest {
     @Autowired private JwtTokenUtil jwtTokenUtil;
     @Autowired private CartRepository cartRepository;
     @Autowired private OrderRepository orderRepository;
+    @Autowired private AddressRepository addressRepository;
 
     private String jwtToken;
     private User user;
     private Product product;
     private Category category;
+    private Address address;
 
     @BeforeEach
     void setUp() {
@@ -71,6 +75,18 @@ class OrderControllerIntegrationTest {
                 .build();
         productRepository.save(product);
 
+        // Create an address for the user
+        address = Address.builder()
+                .userId(user.getId())
+                .label("Home")
+                .contactName("Order User")
+                .contactPhone("1234567890")
+                .addressLine("Jl. Test 123")
+                .postalCode("12345")
+                .isDefault(true)
+                .build();
+        address = addressRepository.save(address);
+
         // Generate JWT token for this user
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
@@ -85,6 +101,9 @@ class OrderControllerIntegrationTest {
         orderRepository.findByUserId(user.getId())
             .forEach(order -> orderRepository.deleteById(order.getId()));
         cartRepository.findByUserId(user.getId()).ifPresent(cartRepository::delete);
+        if (address != null && address.getId() != null) {
+            addressRepository.deleteById(address.getId());
+        }
         productRepository.delete(product);
         categoryRepository.delete(category);
         userRepository.delete(user);
@@ -105,7 +124,7 @@ class OrderControllerIntegrationTest {
 
         // Create order from cart
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Test 123")
+                .addressId(address.getId())
                 .paymentMethod("CREDIT_CARD")
                 .build();
         mockMvc.perform(authenticated(post("/v1/orders"))
@@ -128,7 +147,7 @@ class OrderControllerIntegrationTest {
                 .andExpect(status().isOk());
 
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Test 456")
+                .addressId(address.getId())
                 .paymentMethod("CREDIT_CARD")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
@@ -157,7 +176,7 @@ class OrderControllerIntegrationTest {
                 .andExpect(status().isOk());
 
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Test 789")
+                .addressId(address.getId())
                 .paymentMethod("CREDIT_CARD")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))

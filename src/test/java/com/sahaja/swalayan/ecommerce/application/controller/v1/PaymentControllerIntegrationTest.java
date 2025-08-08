@@ -21,6 +21,8 @@ import com.sahaja.swalayan.ecommerce.domain.repository.ProductRepository;
 import com.sahaja.swalayan.ecommerce.domain.repository.UserRepository;
 import com.sahaja.swalayan.ecommerce.domain.repository.cart.CartRepository;
 import com.sahaja.swalayan.ecommerce.infrastructure.config.XenditProperties;
+import com.sahaja.swalayan.ecommerce.domain.model.user.Address;
+import com.sahaja.swalayan.ecommerce.domain.repository.user.AddressRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -70,12 +72,15 @@ class PaymentControllerIntegrationTest {
     private JwtTokenUtil jwtTokenUtil;
     @Autowired
     private XenditProperties xenditProperties;
+    @Autowired
+    private AddressRepository addressRepository;
 
     private String jwtToken;
     private User user;
     private Product product;
     private Category category;
     private String validCallbackToken;
+    private Address address;
 
     @BeforeEach
     void setUp() {
@@ -111,6 +116,18 @@ class PaymentControllerIntegrationTest {
                 .build();
         productRepository.save(product);
 
+        // Create an address for the user
+        address = Address.builder()
+                .userId(user.getId())
+                .label("Home")
+                .contactName("Payment Test User")
+                .contactPhone("1234567890")
+                .addressLine("Jl. Payment Test 123")
+                .postalCode("12345")
+                .isDefault(true)
+                .build();
+        address = addressRepository.save(address);
+
         // Generate JWT token for this user
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
@@ -126,6 +143,7 @@ class PaymentControllerIntegrationTest {
         cleanupCartItems();
         cleanupProduct();
         cleanupCategory();
+        cleanupAddress();
         cleanupUser(); // Always do user cleanup last
     }
     
@@ -175,6 +193,15 @@ class PaymentControllerIntegrationTest {
         if (category == null || category.getId() == null) return;
         
         deleteEntitySafely(() -> categoryRepository.delete(category), "category");
+    }
+    
+    /**
+     * Delete test address
+     */
+    private void cleanupAddress() {
+        if (address == null || address.getId() == null) return;
+        
+        deleteEntitySafely(() -> addressRepository.deleteById(address.getId()), "address");
     }
     
     /**
@@ -228,7 +255,7 @@ class PaymentControllerIntegrationTest {
 
         // Create order from cart
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Payment Test 123")
+                .addressId(address.getId())
                 .paymentMethod("CREDIT_CARD")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
@@ -272,7 +299,7 @@ class PaymentControllerIntegrationTest {
 
         // Create order from cart
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Payment Invalid Test 123")
+                .addressId(address.getId())
                 .paymentMethod("CREDIT_CARD")
                 .build();
         mockMvc.perform(authenticated(post("/v1/orders"))
@@ -306,7 +333,7 @@ class PaymentControllerIntegrationTest {
 
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Get Payment Test")
+                .addressId(address.getId())
                 .paymentMethod("CREDIT_CARD")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
@@ -361,7 +388,7 @@ class PaymentControllerIntegrationTest {
 
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Get Payments By Order Test")
+                .addressId(address.getId())
                 .paymentMethod("BANK_TRANSFER")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
@@ -407,7 +434,7 @@ class PaymentControllerIntegrationTest {
 
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Webhook Test")
+                .addressId(address.getId())
                 .paymentMethod("BANK_TRANSFER")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
@@ -474,7 +501,7 @@ class PaymentControllerIntegrationTest {
 
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Missing Token Test")
+                .addressId(address.getId())
                 .paymentMethod("BANK_TRANSFER")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
@@ -528,7 +555,7 @@ class PaymentControllerIntegrationTest {
 
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
-                .shippingAddress("Jl. Invalid Token Test")
+                .addressId(address.getId())
                 .paymentMethod("BANK_TRANSFER")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))

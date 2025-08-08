@@ -13,7 +13,7 @@ public class OrderDTO {
     private LocalDateTime orderDate;
     private BigDecimal totalAmount;
     private String status;
-    private String shippingAddress;
+    private UUID addressId;
     private String paymentMethod;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

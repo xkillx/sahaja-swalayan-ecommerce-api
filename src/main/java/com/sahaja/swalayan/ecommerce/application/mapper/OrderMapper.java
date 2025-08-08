@@ -14,6 +14,7 @@ public interface OrderMapper {
     OrderMapper INSTANCE = Mappers.getMapper(OrderMapper.class);
 
     @Mapping(source = "items", target = "items")
+    @Mapping(source = "shippingAddress.id", target = "addressId")
     OrderDTO toOrderDTO(Order order);
     List<OrderDTO> toOrderDTOs(List<Order> orders);
 }

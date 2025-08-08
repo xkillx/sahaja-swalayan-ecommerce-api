@@ -35,7 +35,7 @@ public class OrderController {
             @Valid @RequestBody OrderRequest request) {
         UUID userId = userDetails.getId();
         PaymentMethod paymentMethodEnum = PaymentMethod.fromString(request.getPaymentMethod());
-        Order order = orderService.createOrderFromCart(userId, request.getShippingAddress(), paymentMethodEnum);
+        Order order = orderService.createOrderFromCart(userId, request.getAddressId(), paymentMethodEnum);
         return ResponseEntity.ok(ApiResponse.success("Order created", toOrderDTO(order)));
     }
 

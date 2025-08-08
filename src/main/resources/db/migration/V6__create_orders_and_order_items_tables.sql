@@ -7,13 +7,14 @@ CREATE TABLE orders (
     order_date TIMESTAMP NOT NULL,
     total_amount NUMERIC(18,2) NOT NULL,
     status VARCHAR(32) NOT NULL,
-    shipping_address VARCHAR(500) NOT NULL,
+    shipping_address_id UUID NOT NULL,
     payment_method VARCHAR(100) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_orders_user_id ON orders(user_id);
+CREATE INDEX idx_orders_shipping_address_id ON orders(shipping_address_id);
 
 -- Order Items table
 CREATE TABLE order_items (
