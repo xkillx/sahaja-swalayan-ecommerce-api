@@ -1,12 +1,11 @@
 package com.sahaja.swalayan.ecommerce.domain.service;
 
 import com.sahaja.swalayan.ecommerce.domain.model.order.Order;
-import com.sahaja.swalayan.ecommerce.domain.model.order.PaymentMethod;
 import java.util.UUID;
 import java.util.List;
 
 public interface OrderService {
-    Order createOrderFromCart(UUID userId, UUID addressId, PaymentMethod paymentMethod);
+    Order createOrderFromCart(UUID userId, UUID addressId);
     List<Order> getOrdersByUser(UUID userId);
     Order getOrderByIdForUser(UUID orderId, UUID userId);
     /**

@@ -125,7 +125,6 @@ class OrderControllerIntegrationTest {
         // Create order from cart
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("CREDIT_CARD")
                 .build();
         mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -148,7 +147,6 @@ class OrderControllerIntegrationTest {
 
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("CREDIT_CARD")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -177,7 +175,6 @@ class OrderControllerIntegrationTest {
 
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("CREDIT_CARD")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)

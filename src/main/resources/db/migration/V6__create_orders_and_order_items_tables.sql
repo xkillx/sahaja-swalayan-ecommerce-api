@@ -8,7 +8,6 @@ CREATE TABLE orders (
     total_amount NUMERIC(18,2) NOT NULL,
     status VARCHAR(32) NOT NULL,
     shipping_address_id UUID NOT NULL,
-    payment_method VARCHAR(100) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

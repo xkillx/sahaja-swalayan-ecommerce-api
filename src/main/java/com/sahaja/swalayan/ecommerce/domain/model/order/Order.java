@@ -42,10 +42,6 @@ public class Order {
     @JoinColumn(name = "shipping_address_id", nullable = false)
     private Address shippingAddress;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 100)
-    private PaymentMethod paymentMethod;
-
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

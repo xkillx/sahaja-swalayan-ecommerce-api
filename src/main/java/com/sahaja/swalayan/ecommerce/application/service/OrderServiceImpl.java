@@ -1,7 +1,6 @@
 package com.sahaja.swalayan.ecommerce.application.service;
 
 import com.sahaja.swalayan.ecommerce.domain.model.order.Order;
-import com.sahaja.swalayan.ecommerce.domain.model.order.PaymentMethod;
 import com.sahaja.swalayan.ecommerce.domain.model.order.Status;
 import com.sahaja.swalayan.ecommerce.domain.model.cart.Cart;
 import com.sahaja.swalayan.ecommerce.domain.model.cart.CartItem;
@@ -46,9 +45,8 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public Order createOrderFromCart(UUID userId, UUID addressId, PaymentMethod paymentMethod) {
-        log.debug("Creating order for userId={}, addressId={}, paymentMethod={}", userId, addressId,
-                paymentMethod);
+    public Order createOrderFromCart(UUID userId, UUID addressId) {
+        log.debug("Creating order for userId={}, addressId={}", userId, addressId);
 
         // 0. Validate address exists and belongs to the user
         Address address = addressRepository.findById(addressId)
@@ -87,7 +85,6 @@ public class OrderServiceImpl implements OrderService {
                 .totalAmount(totalAmount)
                 .status(Status.PENDING)
                 .shippingAddress(address)
-                .paymentMethod(paymentMethod)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();

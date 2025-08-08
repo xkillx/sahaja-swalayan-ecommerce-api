@@ -14,7 +14,6 @@ public class OrderDTO {
     private BigDecimal totalAmount;
     private String status;
     private UUID addressId;
-    private String paymentMethod;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<OrderItemDTO> items;

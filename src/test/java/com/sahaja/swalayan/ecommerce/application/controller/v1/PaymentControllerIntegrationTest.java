@@ -256,7 +256,6 @@ class PaymentControllerIntegrationTest {
         // Create order from cart
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("CREDIT_CARD")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -300,7 +299,6 @@ class PaymentControllerIntegrationTest {
         // Create order from cart
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("CREDIT_CARD")
                 .build();
         mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -334,7 +332,6 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("CREDIT_CARD")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -389,7 +386,6 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("BANK_TRANSFER")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -435,7 +431,6 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("BANK_TRANSFER")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -502,7 +497,6 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("BANK_TRANSFER")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -556,7 +550,6 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
-                .paymentMethod("BANK_TRANSFER")
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)

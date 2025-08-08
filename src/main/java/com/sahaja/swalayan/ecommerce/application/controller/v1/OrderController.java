@@ -4,7 +4,6 @@ import com.sahaja.swalayan.ecommerce.application.dto.OrderDTO;
 import com.sahaja.swalayan.ecommerce.application.dto.OrderRequest;
 import com.sahaja.swalayan.ecommerce.application.mapper.OrderMapper;
 import com.sahaja.swalayan.ecommerce.domain.model.order.Order;
-import com.sahaja.swalayan.ecommerce.domain.model.order.PaymentMethod;
 import com.sahaja.swalayan.ecommerce.domain.service.OrderService;
 import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiCreateOrderOperation;
 import com.sahaja.swalayan.ecommerce.infrastructure.swagger.ApiGetOrderByIdOperation;
@@ -34,8 +33,7 @@ public class OrderController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody OrderRequest request) {
         UUID userId = userDetails.getId();
-        PaymentMethod paymentMethodEnum = PaymentMethod.fromString(request.getPaymentMethod());
-        Order order = orderService.createOrderFromCart(userId, request.getAddressId(), paymentMethodEnum);
+        Order order = orderService.createOrderFromCart(userId, request.getAddressId());
         return ResponseEntity.ok(ApiResponse.success("Order created", toOrderDTO(order)));
     }
 
