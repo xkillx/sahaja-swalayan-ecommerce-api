@@ -7,6 +7,9 @@ import com.sahaja.swalayan.ecommerce.domain.model.user.UserStatus;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateRequestDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateResponseDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderRequestDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderResponseDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.OrderItemDTO;
 import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
 
 import org.junit.jupiter.api.AfterEach;
@@ -55,6 +58,11 @@ public class ShippingControllerIntegrationTest {
     private String getRatesUrl() {
         // Context-path is '/api' in tests
         return "http://localhost:" + port + "/api/v1/shipping/rates";
+    }
+
+    private String getOrdersUrl() {
+        // Context-path is '/api' in tests
+        return "http://localhost:" + port + "/api/v1/shipping/orders";
     }
 
     @BeforeEach
@@ -172,5 +180,77 @@ public class ShippingControllerIntegrationTest {
         assertThat(body.getPricing().get(0).getCourierServiceName()).isNotBlank();
         assertThat(body.getPricing().get(0).getCourierServiceCode()).isNotBlank();
         assertThat(body.getPricing().get(0).getPrice()).isNotNull();
+    }
+
+    @Test
+    void createOrder_createsOrderSuccessfully() {
+        // Ensure user persisted in DB (per test convention)
+        assertThat(userRepository.findByEmail(testUser.getEmail())).isPresent();
+
+        // Prepare auth header with valid JWT
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", "CUSTOMER");
+        String token = jwtTokenUtil.generateToken(testUser.getEmail(), claims);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // Build request body based on Biteship docs example (adapted to our DTO fields)
+        CreateOrderRequestDTO request = CreateOrderRequestDTO.builder()
+                .shipperContactName("Amir")
+                .shipperContactPhone("088888888888")
+                .shipperContactEmail("biteship@test.com")
+                .shipperOrganization("Biteship Org Test")
+                .originContactName("Amir")
+                .originContactPhone("088888888888")
+                .originAddress("Plaza Senayan, Jalan Asia Afrika, Jakarta")
+                .originPostalCode("12440")
+                .destinationContactName("John Doe")
+                .destinationContactPhone("088888888888")
+                .destinationContactEmail("jon@test.com")
+                .destinationAddress("Lebak Bulus MRT, Jakarta")
+                .destinationPostalCode("12950")
+                .courierCompany("jne")
+                .courierType("reg")
+                .courierInsurance(165000)
+                .deliveryType("now")
+                .item(OrderItemDTO.builder()
+                        .name("Black L")
+                        .description("White Shirt")
+                        .category("fashion")
+                        .value(165000)
+                        .quantity(1)
+                        .height(10)
+                        .length(10)
+                        .weight(200)
+                        .width(10)
+                        .build())
+                .build();
+
+        // Act
+        ResponseEntity<CreateOrderResponseDTO> response = restTemplate.exchange(
+                getOrdersUrl(),
+                HttpMethod.POST,
+                new HttpEntity<>(request, headers),
+                CreateOrderResponseDTO.class
+        );
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        CreateOrderResponseDTO body = Objects.requireNonNull(response.getBody());
+        assertThat(body.isSuccess()).isTrue();
+        assertThat(body.getObject()).isNotBlank();
+        assertThat(body.getObject()).isEqualToIgnoringCase("order");
+        assertThat(body.getId()).isNotBlank();
+        assertThat(body.getDestination()).isNotNull();
+        assertThat(body.getCourier()).isNotNull();
+        assertThat(body.getItems()).isNotNull();
+        assertThat(body.getItems()).isNotEmpty();
+        assertThat(body.getCurrency()).isNotBlank();
+        assertThat(body.getPrice()).isNotNull();
+        assertThat(body.getStatus()).isNotBlank();
     }
 }

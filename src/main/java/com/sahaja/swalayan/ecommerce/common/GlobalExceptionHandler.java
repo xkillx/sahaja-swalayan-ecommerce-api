@@ -76,7 +76,8 @@ public class GlobalExceptionHandler {
             InvalidConfirmationTokenException.class,
             InvalidXenditPayloadException.class,
             JwtException.class,
-            CategoryNotFoundException.class
+            CategoryNotFoundException.class,
+            ShippingException.class
     })
     public ResponseEntity<ApiResponse<?>> handleBadRequest(Exception ex, WebRequest request) {
         log.error("Bad Request ({}): {}", ex.getClass().getSimpleName(), ex.getMessage());

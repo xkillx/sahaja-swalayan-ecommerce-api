@@ -4,6 +4,8 @@ import com.sahaja.swalayan.ecommerce.domain.service.ShippingService;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateRequestDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateResponseDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderRequestDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,14 @@ public class ShippingController {
     public ResponseEntity<CourierRateResponseDTO> calculateRates(@RequestBody CourierRateRequestDTO request) {
         log.debug("Calculating shipping rates: {}", request);
         CourierRateResponseDTO response = shippingService.getCourierRates(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Create a shipping order (usually after payment confirmation)")
+    @PostMapping("/orders")
+    public ResponseEntity<CreateOrderResponseDTO> createOrder(@RequestBody CreateOrderRequestDTO request) {
+        log.debug("Creating shipping order: {}", request);
+        CreateOrderResponseDTO response = shippingService.createOrder(request);
         return ResponseEntity.ok(response);
     }
 }
