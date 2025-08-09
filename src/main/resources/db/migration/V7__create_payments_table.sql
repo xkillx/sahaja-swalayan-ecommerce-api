@@ -3,7 +3,6 @@ CREATE TABLE payments (
     id UUID PRIMARY KEY,
     order_id UUID NOT NULL,
     external_id UUID NOT NULL UNIQUE,
-    payment_method VARCHAR(30) NOT NULL,
     payment_status VARCHAR(20) NOT NULL,
     amount NUMERIC(19,2) NOT NULL CHECK (amount > 0),
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,

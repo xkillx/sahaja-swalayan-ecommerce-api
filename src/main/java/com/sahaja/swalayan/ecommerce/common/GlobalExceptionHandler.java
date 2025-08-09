@@ -74,7 +74,6 @@ public class GlobalExceptionHandler {
     // Handle all BAD_REQUEST exceptions
     @ExceptionHandler({
             InvalidConfirmationTokenException.class,
-            InvalidPaymentMethodException.class,
             InvalidXenditPayloadException.class,
             JwtException.class,
             CategoryNotFoundException.class

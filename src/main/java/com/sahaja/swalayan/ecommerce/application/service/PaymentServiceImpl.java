@@ -99,7 +99,6 @@ public class PaymentServiceImpl implements PaymentService {
         Payment payment = Payment.builder()
                 .orderId(request.getOrderId())
                 .externalId(externalId)
-                .paymentMethod(request.getPaymentMethod())
                 .paymentStatus(PaymentStatus.PENDING)
                 .amount(request.getAmount())
                 .xenditInvoiceUrl(xenditResponse.getInvoiceUrl())

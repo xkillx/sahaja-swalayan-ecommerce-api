@@ -5,10 +5,8 @@ import com.sahaja.swalayan.ecommerce.application.dto.OrderRequest;
 import com.sahaja.swalayan.ecommerce.application.dto.PaymentRequest;
 import com.sahaja.swalayan.ecommerce.application.dto.XenditWebhookPayload;
 import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
-import com.sahaja.swalayan.ecommerce.domain.model.order.Order;
 import com.sahaja.swalayan.ecommerce.domain.model.order.Payment;
 import com.sahaja.swalayan.ecommerce.domain.model.order.PaymentStatus;
-import com.sahaja.swalayan.ecommerce.domain.model.order.PaymentMethod;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Category;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
 import com.sahaja.swalayan.ecommerce.domain.model.user.User;
@@ -270,7 +268,6 @@ class PaymentControllerIntegrationTest {
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
                 .amount(new BigDecimal("100000.00"))
-                .paymentMethod(PaymentMethod.CREDIT_CARD)
                 .build();
 
         mockMvc.perform(authenticated(post("/v1/payments"))
@@ -308,7 +305,6 @@ class PaymentControllerIntegrationTest {
         // Try to create payment with missing orderId
         PaymentRequest invalidRequest = PaymentRequest.builder()
                 .amount(new BigDecimal("100.00"))
-                .paymentMethod(PaymentMethod.CREDIT_CARD)
                 .build();
 
         mockMvc.perform(authenticated(post("/v1/payments"))
@@ -345,7 +341,6 @@ class PaymentControllerIntegrationTest {
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
                 .amount(new BigDecimal("50000.00"))
-                .paymentMethod(PaymentMethod.CREDIT_CARD)
                 .build();
 
         String paymentJson = mockMvc.perform(authenticated(post("/v1/payments"))
@@ -399,7 +394,6 @@ class PaymentControllerIntegrationTest {
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
                 .amount(new BigDecimal("150000.00"))
-                .paymentMethod(PaymentMethod.BANK_TRANSFER)
                 .build();
 
         mockMvc.perform(authenticated(post("/v1/payments"))
@@ -444,7 +438,6 @@ class PaymentControllerIntegrationTest {
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
                 .amount(new BigDecimal("50000.00"))
-                .paymentMethod(PaymentMethod.BANK_TRANSFER)
                 .build();
 
         String paymentJson = mockMvc.perform(authenticated(post("/v1/payments"))
@@ -510,7 +503,6 @@ class PaymentControllerIntegrationTest {
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
                 .amount(new BigDecimal("50000.00"))
-                .paymentMethod(PaymentMethod.BANK_TRANSFER)
                 .build();
 
         String paymentJson = mockMvc.perform(authenticated(post("/v1/payments"))
@@ -563,7 +555,6 @@ class PaymentControllerIntegrationTest {
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
                 .amount(new BigDecimal("50000.00"))
-                .paymentMethod(PaymentMethod.BANK_TRANSFER)
                 .build();
 
         String paymentJson = mockMvc.perform(authenticated(post("/v1/payments"))

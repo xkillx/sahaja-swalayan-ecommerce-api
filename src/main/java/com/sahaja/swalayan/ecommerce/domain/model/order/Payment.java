@@ -34,10 +34,6 @@ public class Payment {
     private UUID externalId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_method", nullable = false, length = 30)
-    private PaymentMethod paymentMethod;
-
-    @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", nullable = false, length = 20)
     private PaymentStatus paymentStatus;
 

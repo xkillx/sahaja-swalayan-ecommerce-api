@@ -14,7 +14,7 @@ import java.lang.annotation.*;
 @Inherited
 @Operation(
     summary = "Create a new payment",
-    description = "Create a payment for an order with specified payment method",
+    description = "Create a payment for an order. Payment methods are handled by Xendit checkout.",
     tags = {"Payments"}
 )
 @ApiResponses({
