@@ -14,8 +14,10 @@ import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.Cancel
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancelOrderResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.TrackingResponseDTO;
 import com.sahaja.swalayan.ecommerce.common.ShippingException;
+import com.sahaja.swalayan.ecommerce.infrastructure.config.CacheConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -30,6 +32,7 @@ public class ShippingServiceImpl implements ShippingService {
     }
 
     @Override
+    @Cacheable(value = CacheConfig.CACHE_AREAS, key = "#input != null ? #input.trim().toLowerCase() : 'null'", unless = "#result == null")
     public AreaResponseDTO searchAreas(String input) {
         log.debug("Starting searchAreas with input: {}", input);
         try {
@@ -47,6 +50,7 @@ public class ShippingServiceImpl implements ShippingService {
     }
 
     @Override
+    @Cacheable(value = CacheConfig.CACHE_COURIERS, key = "'all'", unless = "#result == null")
     public CourierResponseDTO getAvailableCouriers() {
         log.debug("Starting getAvailableCouriers");
         try {
@@ -111,6 +115,7 @@ public class ShippingServiceImpl implements ShippingService {
     }
 
     @Override
+    @Cacheable(value = CacheConfig.CACHE_CANCELLATION_REASONS, key = "#lang != null ? #lang.trim().toLowerCase() : 'null'", unless = "#result == null")
     public CancellationReasonResponseDTO getCancellationReasons(String lang) {
         log.debug("Starting getCancellationReasons with lang: {}", lang);
         try {
