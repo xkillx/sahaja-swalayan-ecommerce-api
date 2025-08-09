@@ -1,0 +1,28 @@
+package com.sahaja.swalayan.ecommerce.application.controller.v1;
+
+import com.sahaja.swalayan.ecommerce.domain.service.ShippingService;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierResponseDTO;
+import io.swagger.v3.oas.annotations.Operation;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@Slf4j
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/v1/shipping")
+public class ShippingController {
+
+    private final ShippingService shippingService;
+
+    @Operation(summary = "Get available couriers for selection during checkout")
+    @GetMapping("/couriers")
+    public ResponseEntity<CourierResponseDTO> getAvailableCouriers() {
+        log.debug("Fetching available couriers");
+        CourierResponseDTO response = shippingService.getAvailableCouriers();
+        return ResponseEntity.ok(response);
+    }
+}
