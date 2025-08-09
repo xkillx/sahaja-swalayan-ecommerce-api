@@ -57,4 +57,14 @@ public class ShippingController {
         TrackingResponseDTO response = shippingService.getTrackingById(trackingId);
         return ResponseEntity.ok(response);
     }
+
+    @Operation(summary = "Retrieve public tracking by waybill and courier code")
+    @GetMapping("/trackings/{waybillId}/couriers/{courierCode}")
+    public ResponseEntity<TrackingResponseDTO> getPublicTracking(
+            @PathVariable String waybillId,
+            @PathVariable String courierCode) {
+        log.debug("Retrieving public tracking for waybillId: {}, courierCode: {}", waybillId, courierCode);
+        TrackingResponseDTO response = shippingService.getPublicTracking(waybillId, courierCode);
+        return ResponseEntity.ok(response);
+    }
 }

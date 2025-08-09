@@ -169,4 +169,25 @@ public class ShippingServiceImpl implements ShippingService {
             throw new ShippingException("Failed to retrieve tracking info: " + e.getMessage(), e);
         }
     }
+
+    @Override
+    public TrackingResponseDTO getPublicTracking(String waybillId, String courierCode) {
+        log.debug("Starting getPublicTracking with waybillId: {}, courierCode: {}", waybillId, courierCode);
+        try {
+            if (waybillId == null || waybillId.isBlank()) {
+                log.debug("Invalid waybillId: {}", waybillId);
+                throw new ShippingException("Waybill ID must not be null or blank");
+            }
+            if (courierCode == null || courierCode.isBlank()) {
+                log.debug("Invalid courierCode: {}", courierCode);
+                throw new ShippingException("Courier code must not be null or blank");
+            }
+            TrackingResponseDTO response = biteshipShippingClient.getPublicTracking(waybillId, courierCode);
+            log.debug("Successfully retrieved public tracking for waybillId: {}, courierCode: {}", waybillId, courierCode);
+            return response;
+        } catch (Exception e) {
+            log.error("Failed to retrieve public tracking for waybillId: {}, courierCode: {}. Error: {}", waybillId, courierCode, e.getMessage(), e);
+            throw new ShippingException("Failed to retrieve public tracking: " + e.getMessage(), e);
+        }
+    }
 }

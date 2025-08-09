@@ -163,6 +163,32 @@ public class BiteshipShippingClient {
         return response.getBody();
     }
 
+    /**
+     * Retrieve a public tracking by waybill ID and courier code.
+     * API: GET /v1/trackings/{waybill_id}/couriers/{courier_code}
+     *
+     * @param waybillId    The air waybill number of the shipment
+     * @param courierCode  The courier code (as provided by Biteship courier API)
+     * @return TrackingResponseDTO containing tracking details
+     */
+    public TrackingResponseDTO getPublicTracking(String waybillId, String courierCode) {
+        String url = UriComponentsBuilder
+                .fromUriString(biteshipProperties.getBaseUrl() + "/v1/trackings/{waybillId}/couriers/{courierCode}")
+                .buildAndExpand(waybillId, courierCode)
+                .toUriString();
+
+        HttpHeaders headers = createAuthHeaders();
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<TrackingResponseDTO> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                TrackingResponseDTO.class
+        );
+        return response.getBody();
+    }
+
     public CourierResponseDTO getAvailableCouriers() {
         String url = biteshipProperties.getBaseUrl() + "/v1/couriers";
 

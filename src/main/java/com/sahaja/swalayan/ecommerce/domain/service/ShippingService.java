@@ -68,5 +68,14 @@ public interface ShippingService {
      * @return TrackingResponseDTO with tracking info
      */
     TrackingResponseDTO getTrackingById(String trackingId);
+
+    /**
+     * Retrieve public tracking details by waybill ID and courier code.
+     * Mirrors Biteship endpoint GET /v1/trackings/{waybill_id}/couriers/{courier_code}.
+     * @param waybillId the shipment waybill number
+     * @param courierCode the courier code (e.g., "jne", "sicepat")
+     * @return TrackingResponseDTO with tracking info
+     */
+    TrackingResponseDTO getPublicTracking(String waybillId, String courierCode);
 }
 
