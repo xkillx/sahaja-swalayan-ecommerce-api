@@ -5,6 +5,8 @@ import com.sahaja.swalayan.ecommerce.domain.model.user.User;
 import com.sahaja.swalayan.ecommerce.domain.model.user.UserRole;
 import com.sahaja.swalayan.ecommerce.domain.model.user.UserStatus;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierResponseDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateRequestDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateResponseDTO;
 import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
 
 import org.junit.jupiter.api.AfterEach;
@@ -48,6 +50,11 @@ public class ShippingControllerIntegrationTest {
     private String getBaseUrl() {
         // Context-path is '/api' in tests, following existing integration tests
         return "http://localhost:" + port + "/api/v1/shipping/couriers";
+    }
+
+    private String getRatesUrl() {
+        // Context-path is '/api' in tests
+        return "http://localhost:" + port + "/api/v1/shipping/rates";
     }
 
     @BeforeEach
@@ -108,5 +115,62 @@ public class ShippingControllerIntegrationTest {
         assertThat(body.getCouriers().get(0).getCourierCode()).isNotBlank();
         assertThat(body.getCouriers().get(0).getCourierServiceName()).isNotBlank();
         assertThat(body.getCouriers().get(0).getCourierServiceCode()).isNotBlank();
+    }
+
+    @Test
+    void calculateRates_returnsPricing() {
+        // Ensure user persisted in DB (per test convention)
+        assertThat(userRepository.findByEmail(testUser.getEmail())).isPresent();
+
+        // Prepare auth header with valid JWT
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", "CUSTOMER");
+        String token = jwtTokenUtil.generateToken(testUser.getEmail(), claims);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // Build request body based on Biteship docs example
+        CourierRateRequestDTO request = CourierRateRequestDTO.builder()
+                .originPostalCode("12440")
+                .destinationPostalCode("12240")
+                .couriers("anteraja,jne,sicepat")
+                .item(CourierRateRequestDTO.ItemDTO.builder()
+                        .name("Shoes")
+                        .description("Black colored size 45")
+                        .value(199000)
+                        .length(30)
+                        .width(15)
+                        .height(20)
+                        .weight(200)
+                        .quantity(2)
+                        .build())
+                .build();
+
+        // Act
+        ResponseEntity<CourierRateResponseDTO> response = restTemplate.exchange(
+                getRatesUrl(),
+                HttpMethod.POST,
+                new HttpEntity<>(request, headers),
+                CourierRateResponseDTO.class
+        );
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        CourierRateResponseDTO body = Objects.requireNonNull(response.getBody());
+        // General structure based on Biteship API
+        assertThat(body.getOrigin()).isNotNull();
+        assertThat(body.getDestination()).isNotNull();
+        assertThat(body.getPricing()).isNotNull();
+        assertThat(body.getPricing()).isNotEmpty();
+        // Essential fields on first pricing item
+        assertThat(body.getPricing().get(0).getCourierName()).isNotBlank();
+        assertThat(body.getPricing().get(0).getCourierCode()).isNotBlank();
+        assertThat(body.getPricing().get(0).getCourierServiceName()).isNotBlank();
+        assertThat(body.getPricing().get(0).getCourierServiceCode()).isNotBlank();
+        assertThat(body.getPricing().get(0).getPrice()).isNotNull();
     }
 }
