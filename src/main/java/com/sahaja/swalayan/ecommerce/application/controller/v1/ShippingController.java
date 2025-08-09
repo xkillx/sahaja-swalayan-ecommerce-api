@@ -6,6 +6,7 @@ import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.Courie
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderRequestDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderResponseDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.TrackingResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @Slf4j
 @RestController
@@ -45,6 +47,14 @@ public class ShippingController {
     public ResponseEntity<CreateOrderResponseDTO> createOrder(@RequestBody CreateOrderRequestDTO request) {
         log.debug("Creating shipping order: {}", request);
         CreateOrderResponseDTO response = shippingService.createOrder(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Retrieve shipment details and current status by tracking ID")
+    @GetMapping("/orders/{trackingId}")
+    public ResponseEntity<TrackingResponseDTO> getOrderTracking(@PathVariable String trackingId) {
+        log.debug("Retrieving shipping order tracking: {}", trackingId);
+        TrackingResponseDTO response = shippingService.getTrackingById(trackingId);
         return ResponseEntity.ok(response);
     }
 }

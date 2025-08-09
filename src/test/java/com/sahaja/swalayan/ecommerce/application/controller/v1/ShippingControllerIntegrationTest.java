@@ -10,6 +10,7 @@ import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.Courie
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderRequestDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.OrderItemDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.TrackingResponseDTO;
 import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
 
 import org.junit.jupiter.api.AfterEach;
@@ -63,6 +64,11 @@ public class ShippingControllerIntegrationTest {
     private String getOrdersUrl() {
         // Context-path is '/api' in tests
         return "http://localhost:" + port + "/api/v1/shipping/orders";
+    }
+
+    private String getTrackingUrl(String trackingId) {
+        // Context-path is '/api' in tests
+        return "http://localhost:" + port + "/api/v1/shipping/orders/" + trackingId;
     }
 
     @BeforeEach
@@ -252,5 +258,87 @@ public class ShippingControllerIntegrationTest {
         assertThat(body.getCurrency()).isNotBlank();
         assertThat(body.getPrice()).isNotNull();
         assertThat(body.getStatus()).isNotBlank();
+    }
+
+    @Test
+    void trackOrder_returnsTrackingDetails() {
+        // Ensure user persisted in DB (per test convention)
+        assertThat(userRepository.findByEmail(testUser.getEmail())).isPresent();
+
+        // Prepare auth header with valid JWT
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", "CUSTOMER");
+        String token = jwtTokenUtil.generateToken(testUser.getEmail(), claims);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // First, create an order to obtain a valid trackingId
+        CreateOrderRequestDTO request = CreateOrderRequestDTO.builder()
+                .shipperContactName("Amir")
+                .shipperContactPhone("088888888888")
+                .shipperContactEmail("biteship@test.com")
+                .shipperOrganization("Biteship Org Test")
+                .originContactName("Amir")
+                .originContactPhone("088888888888")
+                .originAddress("Plaza Senayan, Jalan Asia Afrika, Jakarta")
+                .originPostalCode("12440")
+                .destinationContactName("John Doe")
+                .destinationContactPhone("088888888888")
+                .destinationContactEmail("jon@test.com")
+                .destinationAddress("Lebak Bulus MRT, Jakarta")
+                .destinationPostalCode("12950")
+                .courierCompany("jne")
+                .courierType("reg")
+                .courierInsurance(165000)
+                .deliveryType("now")
+                .item(OrderItemDTO.builder()
+                        .name("Black L")
+                        .description("White Shirt")
+                        .category("fashion")
+                        .value(165000)
+                        .quantity(1)
+                        .height(10)
+                        .length(10)
+                        .weight(200)
+                        .width(10)
+                        .build())
+                .build();
+
+        ResponseEntity<CreateOrderResponseDTO> createOrderResponse = restTemplate.exchange(
+                getOrdersUrl(),
+                HttpMethod.POST,
+                new HttpEntity<>(request, headers),
+                CreateOrderResponseDTO.class
+        );
+
+        assertThat(createOrderResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        CreateOrderResponseDTO created = Objects.requireNonNull(createOrderResponse.getBody());
+        assertThat(created.isSuccess()).isTrue();
+        assertThat(created.getCourier()).isNotNull();
+        assertThat(created.getCourier().getTrackingId()).isNotBlank();
+
+        String trackingId = created.getCourier().getTrackingId();
+
+        // Retrieve tracking details
+        ResponseEntity<TrackingResponseDTO> trackingResponse = restTemplate.exchange(
+                getTrackingUrl(trackingId),
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                TrackingResponseDTO.class
+        );
+
+        assertThat(trackingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        TrackingResponseDTO tracking = Objects.requireNonNull(trackingResponse.getBody());
+        assertThat(tracking.isSuccess()).isTrue();
+        assertThat(tracking.getId()).isNotBlank();
+        assertThat(tracking.getStatus()).isNotBlank();
+        assertThat(tracking.getCourier()).isNotNull();
+        assertThat(tracking.getOrigin()).isNotNull();
+        assertThat(tracking.getDestination()).isNotNull();
+        // history may be empty for brand-new orders, so just assert non-null list
+        assertThat(tracking.getHistory()).isNotNull();
     }
 }
