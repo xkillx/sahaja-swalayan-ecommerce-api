@@ -11,6 +11,7 @@ import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.Create
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.OrderItemDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.TrackingResponseDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancellationReasonResponseDTO;
 import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
 
 import org.junit.jupiter.api.AfterEach;
@@ -56,6 +57,38 @@ public class ShippingControllerIntegrationTest {
         return "http://localhost:" + port + "/api/v1/shipping/couriers";
     }
 
+    @Test
+    void getCancellationReasons_returnsList() {
+        // Ensure user persisted in DB (per test convention)
+        assertThat(userRepository.findByEmail(testUser.getEmail())).isPresent();
+
+        // Prepare auth header with valid JWT
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", "CUSTOMER");
+        String token = jwtTokenUtil.generateToken(testUser.getEmail(), claims);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+
+        // Act
+        ResponseEntity<CancellationReasonResponseDTO> response = restTemplate.exchange(
+                getCancelReasonsUrl("en"),
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                CancellationReasonResponseDTO.class
+        );
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        CancellationReasonResponseDTO body = Objects.requireNonNull(response.getBody());
+        assertThat(body.isSuccess()).isTrue();
+        assertThat(body.getCancellationReasons()).isNotNull();
+        assertThat(body.getCancellationReasons()).isNotEmpty();
+        assertThat(body.getCancellationReasons().get(0).getCode()).isNotBlank();
+        assertThat(body.getCancellationReasons().get(0).getReason()).isNotBlank();
+    }
+
     private String getRatesUrl() {
         // Context-path is '/api' in tests
         return "http://localhost:" + port + "/api/v1/shipping/rates";
@@ -74,6 +107,11 @@ public class ShippingControllerIntegrationTest {
     private String getPublicTrackingUrl(String waybillId, String courierCode) {
         // Context-path is '/api' in tests
         return "http://localhost:" + port + "/api/v1/shipping/trackings/" + waybillId + "/couriers/" + courierCode;
+    }
+
+    private String getCancelReasonsUrl(String lang) {
+        // Context-path is '/api' in tests
+        return "http://localhost:" + port + "/api/v1/shipping/cancel-reasons?lang=" + lang;
     }
 
     @BeforeEach
