@@ -68,7 +68,7 @@ public class ShippingControllerIntegrationTest {
 
     private String getTrackingUrl(String trackingId) {
         // Context-path is '/api' in tests
-        return "http://localhost:" + port + "/api/v1/shipping/orders/" + trackingId;
+        return "http://localhost:" + port + "/api/v1/shipping/track/" + trackingId;
     }
 
     private String getPublicTrackingUrl(String waybillId, String courierCode) {

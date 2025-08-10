@@ -50,10 +50,10 @@ public class ShippingController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Retrieve shipment details and current status by tracking ID")
-    @GetMapping("/orders/{trackingId}")
+    @Operation(summary = "Get live tracking updates from courier API")
+    @GetMapping("/track/{trackingId}")
     public ResponseEntity<TrackingResponseDTO> getOrderTracking(@PathVariable String trackingId) {
-        log.debug("Retrieving shipping order tracking: {}", trackingId);
+        log.debug("Retrieving live tracking updates: {}", trackingId);
         TrackingResponseDTO response = shippingService.getTrackingById(trackingId);
         return ResponseEntity.ok(response);
     }
