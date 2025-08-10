@@ -8,6 +8,8 @@ import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.Create
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.TrackingResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancellationReasonResponseDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancelOrderRequestDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancelOrderResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,16 @@ public class ShippingController {
     public ResponseEntity<CreateOrderResponseDTO> createOrder(@RequestBody CreateOrderRequestDTO request) {
         log.debug("Creating shipping order: {}", request);
         CreateOrderResponseDTO response = shippingService.createOrder(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Cancel a shipment (if courier allows)")
+    @PostMapping("/orders/{orderId}/cancel")
+    public ResponseEntity<CancelOrderResponseDTO> cancelOrder(
+            @PathVariable String orderId,
+            @RequestBody CancelOrderRequestDTO request) {
+        log.debug("Cancelling shipping order: {} with payload: {}", orderId, request);
+        CancelOrderResponseDTO response = shippingService.cancelOrder(orderId, request);
         return ResponseEntity.ok(response);
     }
 

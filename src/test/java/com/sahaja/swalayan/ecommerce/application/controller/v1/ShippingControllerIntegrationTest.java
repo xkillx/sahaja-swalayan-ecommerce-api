@@ -12,6 +12,8 @@ import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.Create
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.OrderItemDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.TrackingResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancellationReasonResponseDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancelOrderRequestDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancelOrderResponseDTO;
 import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
 
 import org.junit.jupiter.api.AfterEach;
@@ -55,6 +57,104 @@ public class ShippingControllerIntegrationTest {
     private String getBaseUrl() {
         // Context-path is '/api' in tests, following existing integration tests
         return "http://localhost:" + port + "/api/v1/shipping/couriers";
+    }
+
+    @Test
+    void cancelShipment_cancelsSuccessfully() {
+        // Ensure user persisted in DB
+        assertThat(userRepository.findByEmail(testUser.getEmail())).isPresent();
+
+        // Prepare auth header with valid JWT
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", "CUSTOMER");
+        String token = jwtTokenUtil.generateToken(testUser.getEmail(), claims);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // 1) Create an order
+        CreateOrderRequestDTO createReq = CreateOrderRequestDTO.builder()
+                .shipperContactName("Amir")
+                .shipperContactPhone("088888888888")
+                .shipperContactEmail("biteship@test.com")
+                .shipperOrganization("Biteship Org Test")
+                .originContactName("Amir")
+                .originContactPhone("088888888888")
+                .originAddress("Plaza Senayan, Jalan Asia Afrika, Jakarta")
+                .originPostalCode("12440")
+                .destinationContactName("John Doe")
+                .destinationContactPhone("088888888888")
+                .destinationContactEmail("jon@test.com")
+                .destinationAddress("Lebak Bulus MRT, Jakarta")
+                .destinationPostalCode("12950")
+                .courierCompany("jne")
+                .courierType("reg")
+                .courierInsurance(165000)
+                .deliveryType("now")
+                .item(OrderItemDTO.builder()
+                        .name("Black L")
+                        .description("White Shirt")
+                        .category("fashion")
+                        .value(165000)
+                        .quantity(1)
+                        .height(10)
+                        .length(10)
+                        .weight(200)
+                        .width(10)
+                        .build())
+                .build();
+
+        ResponseEntity<CreateOrderResponseDTO> createOrderResponse = restTemplate.exchange(
+                getOrdersUrl(),
+                HttpMethod.POST,
+                new HttpEntity<>(createReq, headers),
+                CreateOrderResponseDTO.class
+        );
+
+        assertThat(createOrderResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        CreateOrderResponseDTO created = Objects.requireNonNull(createOrderResponse.getBody());
+        assertThat(created.isSuccess()).isTrue();
+        assertThat(created.getId()).isNotBlank();
+
+        String orderId = created.getId();
+
+        // 2) Fetch cancellation reasons to use a valid code
+        ResponseEntity<CancellationReasonResponseDTO> reasonsResponse = restTemplate.exchange(
+                getCancelReasonsUrl("en"),
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                CancellationReasonResponseDTO.class
+        );
+
+        assertThat(reasonsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        CancellationReasonResponseDTO reasonsBody = Objects.requireNonNull(reasonsResponse.getBody());
+        assertThat(reasonsBody.isSuccess()).isTrue();
+        assertThat(reasonsBody.getCancellationReasons()).isNotEmpty();
+
+        String reasonCode = reasonsBody.getCancellationReasons().get(0).getCode();
+        String reasonText = reasonsBody.getCancellationReasons().get(0).getReason();
+
+        // 3) Cancel the shipment
+        CancelOrderRequestDTO cancelReq = CancelOrderRequestDTO.builder()
+                .cancellationReasonCode(reasonCode)
+                .cancellationReason(reasonText)
+                .build();
+
+        ResponseEntity<CancelOrderResponseDTO> cancelResponse = restTemplate.exchange(
+                getOrderCancelUrl(orderId),
+                HttpMethod.POST,
+                new HttpEntity<>(cancelReq, headers),
+                CancelOrderResponseDTO.class
+        );
+
+        // 4) Assert cancellation response
+        assertThat(cancelResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        CancelOrderResponseDTO cancelBody = Objects.requireNonNull(cancelResponse.getBody());
+        assertThat(cancelBody.isSuccess()).isTrue();
+        assertThat(cancelBody.getId()).isNotBlank();
+        assertThat(cancelBody.getStatus()).isNotBlank();
     }
 
     @Test
@@ -112,6 +212,11 @@ public class ShippingControllerIntegrationTest {
     private String getCancelReasonsUrl(String lang) {
         // Context-path is '/api' in tests
         return "http://localhost:" + port + "/api/v1/shipping/cancel-reasons?lang=" + lang;
+    }
+
+    private String getOrderCancelUrl(String orderId) {
+        // Context-path is '/api' in tests
+        return "http://localhost:" + port + "/api/v1/shipping/orders/" + orderId + "/cancel";
     }
 
     @BeforeEach
