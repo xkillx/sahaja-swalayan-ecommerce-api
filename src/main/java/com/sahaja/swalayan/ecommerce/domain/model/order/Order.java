@@ -9,6 +9,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import com.sahaja.swalayan.ecommerce.domain.model.user.Address;
@@ -41,6 +42,30 @@ public class Order {
     @ManyToOne(optional = false)
     @JoinColumn(name = "shipping_address_id", nullable = false)
     private Address shippingAddress;
+
+    @Column(name = "shipping_courier_code", length = 50)
+    private String shippingCourierCode; // e.g., "jne", "pos", "sicepat"
+
+    @Column(name = "shipping_courier_service", length = 100)
+    private String shippingCourierService; // e.g., "REG", "YES"
+
+    @Column(name = "shipping_courier_service_name", length = 100)
+    private String shippingCourierServiceName; // e.g., "JNE Regular"
+
+    @Column(name = "shipping_cost", precision = 19, scale = 2)
+    private BigDecimal shippingCost;
+
+    @Column(name = "shipping_order_id", length = 100)
+    private String shippingOrderId; // Biteship's shipment/order ID
+
+    @Column(name = "tracking_id", length = 100)
+    private String trackingId; // Courier tracking number
+
+    @Column(name = "estimated_delivery_date")
+    private LocalDate estimatedDeliveryDate;
+
+    @Column(name = "shipping_status", length = 50)
+    private String shippingStatus; // e.g., "pending", "on_delivery", "delivered"
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

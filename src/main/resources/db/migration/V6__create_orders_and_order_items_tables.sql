@@ -8,6 +8,14 @@ CREATE TABLE orders (
     total_amount NUMERIC(18,2) NOT NULL,
     status VARCHAR(32) NOT NULL,
     shipping_address_id UUID NOT NULL,
+    shipping_courier_code VARCHAR(50),
+    shipping_courier_service VARCHAR(100),
+    shipping_courier_service_name VARCHAR(100),
+    shipping_cost NUMERIC(18,2),
+    shipping_order_id VARCHAR(100),
+    tracking_id VARCHAR(100),
+    estimated_delivery_date DATE,
+    shipping_status VARCHAR(50),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

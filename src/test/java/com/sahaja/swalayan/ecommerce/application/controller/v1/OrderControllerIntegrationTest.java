@@ -12,6 +12,7 @@ import com.sahaja.swalayan.ecommerce.domain.repository.cart.CartRepository;
 import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
 import com.sahaja.swalayan.ecommerce.domain.model.user.Address;
 import com.sahaja.swalayan.ecommerce.domain.repository.user.AddressRepository;
+import com.sahaja.swalayan.ecommerce.domain.model.order.Status;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -26,6 +27,7 @@ import java.util.*;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -126,14 +128,41 @@ class OrderControllerIntegrationTest {
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
                 .build();
-        mockMvc.perform(authenticated(post("/v1/orders"))
+        String responseJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(orderRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
-                .andExpect(jsonPath("$.data.items[0].productId").value(product.getId().toString()))
+                .andExpect(jsonPath("$.data.items[0].product_id").value(product.getId().toString()))
                 .andReturn().getResponse().getContentAsString();
+
+        // Assert DB state including new shipping fields are null by default
+        String createdOrderId = objectMapper.readTree(responseJson).path("data").path("id").asText();
+        var createdOrderOpt = orderRepository.findById(UUID.fromString(createdOrderId));
+        assertThat(createdOrderOpt).isPresent();
+        var createdOrder = createdOrderOpt.get();
+
+        // Non-shipping field assertions
+        assertThat(createdOrder.getId()).isEqualTo(UUID.fromString(createdOrderId));
+        assertThat(createdOrder.getUserId()).isEqualTo(user.getId());
+        assertThat(createdOrder.getOrderDate()).isNotNull();
+        assertThat(createdOrder.getTotalAmount())
+                .isEqualByComparingTo(product.getPrice().multiply(BigDecimal.valueOf(2)));
+        assertThat(createdOrder.getStatus()).isEqualTo(Status.PENDING);
+        assertThat(createdOrder.getShippingAddress()).isNotNull();
+        assertThat(createdOrder.getShippingAddress().getId()).isEqualTo(address.getId());
+        assertThat(createdOrder.getCreatedAt()).isNotNull();
+        assertThat(createdOrder.getUpdatedAt()).isNotNull();
+
+        assertThat(createdOrder.getShippingCourierCode()).isNull();
+        assertThat(createdOrder.getShippingCourierService()).isNull();
+        assertThat(createdOrder.getShippingCourierServiceName()).isNull();
+        assertThat(createdOrder.getShippingCost()).isNull();
+        assertThat(createdOrder.getShippingOrderId()).isNull();
+        assertThat(createdOrder.getTrackingId()).isNull();
+        assertThat(createdOrder.getEstimatedDeliveryDate()).isNull();
+        assertThat(createdOrder.getShippingStatus()).isNull();
     }
 
     @Test
