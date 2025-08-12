@@ -45,7 +45,13 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public Order createOrderFromCart(UUID userId, UUID addressId) {
+    public Order createOrderFromCart(
+            UUID userId,
+            UUID addressId,
+            String shippingCourierCode,
+            String shippingCourierService,
+            String shippingCourierServiceName,
+            BigDecimal shippingCost) {
         log.debug("Creating order for userId={}, addressId={}", userId, addressId);
 
         // 0. Validate address exists and belongs to the user
@@ -85,6 +91,10 @@ public class OrderServiceImpl implements OrderService {
                 .totalAmount(totalAmount)
                 .status(Status.PENDING)
                 .shippingAddress(address)
+                .shippingCourierCode(shippingCourierCode)
+                .shippingCourierService(shippingCourierService)
+                .shippingCourierServiceName(shippingCourierServiceName)
+                .shippingCost(shippingCost)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();

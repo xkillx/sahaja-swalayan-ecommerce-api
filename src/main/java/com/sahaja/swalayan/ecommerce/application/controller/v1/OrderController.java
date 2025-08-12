@@ -33,7 +33,13 @@ public class OrderController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody OrderRequest request) {
         UUID userId = userDetails.getId();
-        Order order = orderService.createOrderFromCart(userId, request.getAddressId());
+        Order order = orderService.createOrderFromCart(
+                userId,
+                request.getAddressId(),
+                request.getShippingCourierCode(),
+                request.getShippingCourierService(),
+                request.getShippingCourierServiceName(),
+                request.getShippingCost());
         return ResponseEntity.ok(ApiResponse.success("Order created", toOrderDTO(order)));
     }
 

@@ -166,6 +166,49 @@ class OrderControllerIntegrationTest {
     }
 
     @Test
+    void createOrderFromCart_withShippingSelection_success() throws Exception {
+        // Add product to cart first
+        String addToCartJson = String.format("{\"productId\":\"%s\",\"quantity\":1}", product.getId());
+        mockMvc.perform(authenticated(post("/v1/cart/items"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(addToCartJson))
+                .andExpect(status().isOk());
+
+        // Prepare order request with shipping fields
+        BigDecimal shippingCost = new BigDecimal("15000");
+        OrderRequest orderRequest = OrderRequest.builder()
+                .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("REG")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(shippingCost)
+                .build();
+
+        String responseJson = mockMvc.perform(authenticated(post("/v1/orders"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(orderRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.shipping_courier_code").value("jne"))
+                .andExpect(jsonPath("$.data.shipping_courier_service").value("REG"))
+                .andExpect(jsonPath("$.data.shipping_courier_service_name").value("JNE Regular"))
+                .andExpect(jsonPath("$.data.shipping_cost").value(15000))
+                .andReturn().getResponse().getContentAsString();
+
+        // Assert DB state reflects provided shipping fields
+        String createdOrderId = objectMapper.readTree(responseJson).path("data").path("id").asText();
+        var createdOrderOpt = orderRepository.findById(UUID.fromString(createdOrderId));
+        assertThat(createdOrderOpt).isPresent();
+        var createdOrder = createdOrderOpt.get();
+
+        assertThat(createdOrder.getShippingCourierCode()).isEqualTo("jne");
+        assertThat(createdOrder.getShippingCourierService()).isEqualTo("REG");
+        assertThat(createdOrder.getShippingCourierServiceName()).isEqualTo("JNE Regular");
+        assertThat(createdOrder.getShippingCost()).isEqualByComparingTo(shippingCost);
+    }
+
+    @Test
     void getOrderById_success() throws Exception {
         // Add product to cart and create order
         String addToCartJson = String.format("{\"productId\":\"%s\",\"quantity\":1}", product.getId());
