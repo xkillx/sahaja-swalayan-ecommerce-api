@@ -1,5 +1,7 @@
 package com.sahaja.swalayan.ecommerce.application.service;
 
+import com.sahaja.swalayan.ecommerce.application.dto.CartItemSummaryDTO;
+import com.sahaja.swalayan.ecommerce.application.dto.CartSummaryResponse;
 import com.sahaja.swalayan.ecommerce.domain.model.cart.Cart;
 import com.sahaja.swalayan.ecommerce.domain.model.cart.CartItem;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
@@ -18,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -142,4 +146,38 @@ public class CartServiceImpl implements CartService {
         cart.getItems().clear();
         return cartRepository.save(cart);
     }
+
+    @Transactional
+    public CartSummaryResponse getCartSummary(UUID userId) {
+        Cart cart = cartRepository.findByUserIdWithItemsAndProduct(userId)
+                .orElseThrow(() -> new CartNotFoundException("Cart not found"));
+
+        List<CartItemSummaryDTO> items = cart.getItems().stream()
+                .map(item -> {
+                    var product = item.getProduct();
+                    if (product == null) throw new ProductNotFoundException("CartItem has no product");
+
+                    BigDecimal price = product.getPrice() != null ? product.getPrice() : BigDecimal.ZERO;
+                    BigDecimal qty   = BigDecimal.valueOf(item.getQuantity());
+                    BigDecimal subtotal = price.multiply(qty);
+
+                    return new CartItemSummaryDTO(
+                            item.getId(),
+                            product.getId(),
+                            product.getName(),
+                            price,
+                            item.getQuantity(),
+                            subtotal,
+                            product.getImageUrl()
+                    );
+                })
+                .toList();
+
+        BigDecimal total = items.stream()
+                .map(CartItemSummaryDTO::subtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new CartSummaryResponse(cart.getId(), items, total);
+    }
+
 }

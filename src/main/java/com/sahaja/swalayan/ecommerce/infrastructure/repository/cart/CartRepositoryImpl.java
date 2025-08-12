@@ -39,4 +39,10 @@ public class CartRepositoryImpl implements CartRepository {
     public void delete(Cart cart) {
         cartJpaRepository.delete(cart);
     }
+
+    @Override
+    public Optional<Cart> findByUserIdWithItemsAndProduct(UUID userId) {
+        return cartJpaRepository.findByUserIdWithItemsAndProduct(userId);
+    }
+
 }
