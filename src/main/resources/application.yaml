@@ -75,3 +75,19 @@ app:
 logging:
   level:
     com.sahaja.swalayan.ecommerce: DEBUG
+
+# Shipping Origin (Warehouse) Configuration
+shipping:
+  origin:
+    contact-name: ${SHIPPING_ORIGIN_CONTACT_NAME:Sahaja Warehouse}
+    contact-phone: ${SHIPPING_ORIGIN_CONTACT_PHONE:+621234567890}
+    contact-email: ${SHIPPING_ORIGIN_CONTACT_EMAIL:warehouse@sahajaswalayan.com}
+    organization: ${SHIPPING_ORIGIN_ORGANIZATION:Sahaja Swalayan}
+    address: ${SHIPPING_ORIGIN_ADDRESS:Jalan Warehouse No. 1, Jakarta}
+    note: ${SHIPPING_ORIGIN_NOTE:Main warehouse}
+    postal-code: ${SHIPPING_ORIGIN_POSTAL_CODE:10110}
+    area-id: ${SHIPPING_ORIGIN_AREA_ID:ID-JKT-10000}
+    location-id: ${SHIPPING_ORIGIN_LOCATION_ID:}
+    collection-method: ${SHIPPING_ORIGIN_COLLECTION_METHOD:pickup}
+    latitude: ${SHIPPING_ORIGIN_LATITUDE:-6.200000}
+    longitude: ${SHIPPING_ORIGIN_LONGITUDE:106.816666}

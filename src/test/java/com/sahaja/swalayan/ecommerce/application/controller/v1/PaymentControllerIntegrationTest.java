@@ -21,6 +21,7 @@ import com.sahaja.swalayan.ecommerce.domain.repository.cart.CartRepository;
 import com.sahaja.swalayan.ecommerce.infrastructure.config.XenditProperties;
 import com.sahaja.swalayan.ecommerce.domain.model.user.Address;
 import com.sahaja.swalayan.ecommerce.domain.repository.user.AddressRepository;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -114,14 +115,17 @@ class PaymentControllerIntegrationTest {
                 .build();
         productRepository.save(product);
 
-        // Create an address for the user
+        // Create an address for the user (use valid postal code and area id recognized by Biteship)
         address = Address.builder()
                 .userId(user.getId())
                 .label("Home")
                 .contactName("Payment Test User")
                 .contactPhone("1234567890")
-                .addressLine("Jl. Payment Test 123")
-                .postalCode("12345")
+                .addressLine("Jalan Warehouse No. 1, Jakarta")
+                .postalCode("10110") // Jakarta Pusat
+                .areaId("ID-JKT-10000")
+                .latitude(-6.200000)
+                .longitude(106.816666)
                 .isDefault(true)
                 .build();
         address = addressRepository.save(address);
@@ -254,6 +258,11 @@ class PaymentControllerIntegrationTest {
         // Create order from cart
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                // ensure shipping is selected so webhook attempts shipping creation
+                .shippingCourierCode("jne")
+                .shippingCourierService("reg")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000"))
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -263,6 +272,23 @@ class PaymentControllerIntegrationTest {
 
         // Extract orderId from response
         String orderId = objectMapper.readTree(orderJson).path("data").path("id").asText();
+        // Assert shipping selection persisted before payment + webhook
+        var orderBeforeWebhook = orderRepository.findById(UUID.fromString(orderId)).orElseThrow();
+        assertThat(orderBeforeWebhook.getShippingCourierCode()).isEqualTo("jne");
+        assertThat(orderBeforeWebhook.getShippingCourierService()).isEqualTo("reg");
+        assertThat(orderBeforeWebhook.getShippingCourierServiceName()).isEqualTo("JNE Regular");
+        assertThat(orderBeforeWebhook.getShippingCost()).isNotNull();
+        // Sanity check: shipping selection should be persisted on the order before payment
+        var preWebhookOrder = orderRepository.findById(UUID.fromString(orderId)).orElseThrow();
+        assertThat(preWebhookOrder.getShippingCourierCode()).isEqualTo("jne");
+        assertThat(preWebhookOrder.getShippingCourierService()).isEqualTo("reg");
+        assertThat(preWebhookOrder.getShippingCourierServiceName()).isEqualTo("JNE Regular");
+        // Verify shipping selection persisted on Order before creating payment
+        var createdOrder = orderRepository.findById(UUID.fromString(orderId)).orElseThrow();
+        assertThat(createdOrder.getShippingCourierCode()).isEqualTo("jne");
+        assertThat(createdOrder.getShippingCourierService()).isEqualTo("reg");
+        assertThat(createdOrder.getShippingCourierServiceName()).isEqualTo("JNE Regular");
+        assertThat(createdOrder.getShippingCost()).isNotNull();
 
         // Now create payment for the order
         PaymentRequest paymentRequest = PaymentRequest.builder()
@@ -328,6 +354,11 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                // Provide shipping selection for end-to-end shipping creation
+                .shippingCourierCode("jne")
+                .shippingCourierService("reg")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000.00"))
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -381,6 +412,11 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                // Add shipping selection so webhook will create shipping order
+                .shippingCourierCode("jne")
+                .shippingCourierService("reg")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000.00"))
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -425,6 +461,10 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("reg")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000.00"))
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -473,6 +513,14 @@ class PaymentControllerIntegrationTest {
 
         Payment updated = paymentRepository.findById(UUID.fromString(paymentId)).orElseThrow();
         assertThat(updated.getPaymentStatus()).isEqualTo(PaymentStatus.PAID);
+        // paidAt should be set when status is PAID
+        assertThat(updated.getPaidAt()).isNotNull();
+
+        // Shipping selection was provided, so shipping should be created by the webhook handler
+        var updatedOrder = orderRepository.findById(UUID.fromString(orderId)).orElseThrow();
+        assertThat(updatedOrder.getShippingOrderId()).isNotNull().isNotBlank();
+        assertThat(updatedOrder.getTrackingId()).isNotNull().isNotBlank();
+        assertThat(updatedOrder.getShippingStatus()).isNotNull().isNotBlank();
     }
 
     @Test
