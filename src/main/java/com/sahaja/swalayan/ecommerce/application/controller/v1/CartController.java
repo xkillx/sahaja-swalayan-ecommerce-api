@@ -1,10 +1,7 @@
 package com.sahaja.swalayan.ecommerce.application.controller.v1;
 
+import com.sahaja.swalayan.ecommerce.application.dto.*;
 import com.sahaja.swalayan.ecommerce.domain.service.CartService;
-import com.sahaja.swalayan.ecommerce.application.dto.AddCartItemRequest;
-import com.sahaja.swalayan.ecommerce.application.dto.UpdateCartItemRequest;
-import com.sahaja.swalayan.ecommerce.application.dto.CartResponse;
-import com.sahaja.swalayan.ecommerce.application.dto.ApiResponse;
 import jakarta.validation.Valid;
 import com.sahaja.swalayan.ecommerce.common.CustomUserDetails;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -69,4 +66,20 @@ public class CartController {
         var cart = cartService.clearCart(userId);
         return ResponseEntity.ok(ApiResponse.success("Cart cleared", CartResponse.fromEntity(cart)));
     }
+
+    @Operation(
+            summary = "Get cart summary",
+            description = "Returns the authenticated user's cart with item prices, subtotals, and total."
+    )
+    @ApiCrudResponses
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<CartSummaryResponse>> getCartSummary(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        UUID userId = userDetails.getId();
+        CartSummaryResponse summary = cartService.getCartSummary(userId);
+        return ResponseEntity.ok(ApiResponse.success("Cart retrieved", summary));
+    }
+
+
 }
