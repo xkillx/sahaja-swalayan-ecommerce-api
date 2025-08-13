@@ -32,8 +32,11 @@ public class Order {
     @Column(nullable = false)
     private LocalDateTime orderDate;
 
+    @Column(name = "items_total", precision = 18, scale = 2, nullable = false)
+    private BigDecimal itemsTotal; // only sum of items (excludes shipping)
+
     @Column(nullable = false)
-    private BigDecimal totalAmount;
+    private BigDecimal totalAmount; // final = itemsTotal + shippingCost
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -52,7 +55,7 @@ public class Order {
     @Column(name = "shipping_courier_service_name", length = 100)
     private String shippingCourierServiceName; // e.g., "JNE Regular"
 
-    @Column(name = "shipping_cost", precision = 19, scale = 2)
+    @Column(name = "shipping_cost", precision = 18, scale = 2)
     private BigDecimal shippingCost;
 
     @Column(name = "shipping_order_id", length = 100)

@@ -73,11 +73,11 @@ public class OrderServiceImpl implements OrderService {
             throw new CartEmptyException("Cart is empty");
         }
 
-        // 2. Calculate the total amount
-        BigDecimal totalAmount = cartItems.stream()
+        // 2. Calculate items total (sum of items)
+        BigDecimal itemsTotal = cartItems.stream()
                 .map(item -> item.getProduct().getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        log.debug("Calculated total amount for order: {}", totalAmount);
+        log.debug("Calculated items total for order: {}", itemsTotal);
 
         // 3. Reserve quantity by calling InventoryService
         log.debug("Reserving stock for cart items on InventoryService");
@@ -88,7 +88,8 @@ public class OrderServiceImpl implements OrderService {
         Order order = Order.builder()
                 .userId(userId)
                 .orderDate(LocalDateTime.now())
-                .totalAmount(totalAmount)
+                .itemsTotal(itemsTotal)
+                .totalAmount(itemsTotal.add(shippingCost))
                 .status(Status.PENDING)
                 .shippingAddress(address)
                 .shippingCourierCode(shippingCourierCode)
@@ -99,7 +100,8 @@ public class OrderServiceImpl implements OrderService {
                 .updatedAt(LocalDateTime.now())
                 .build();
         order = orderRepository.save(order);
-        log.debug("Order saved: orderId={}, userId={}, totalAmount={}", order.getId(), userId, totalAmount);
+        log.debug("Order saved: orderId={}, userId={}, itemsTotal={}, shippingCost={}, totalAmount={}",
+                order.getId(), userId, itemsTotal, shippingCost, order.getTotalAmount());
 
         // 5. Save order items
         for (CartItem cartItem : cartItems) {

@@ -127,6 +127,10 @@ class OrderControllerIntegrationTest {
         // Create order from cart
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("REG")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000"))
                 .build();
         String responseJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -147,18 +151,22 @@ class OrderControllerIntegrationTest {
         assertThat(createdOrder.getId()).isEqualTo(UUID.fromString(createdOrderId));
         assertThat(createdOrder.getUserId()).isEqualTo(user.getId());
         assertThat(createdOrder.getOrderDate()).isNotNull();
-        assertThat(createdOrder.getTotalAmount())
+        // itemsTotal = sum of items
+        assertThat(createdOrder.getItemsTotal())
                 .isEqualByComparingTo(product.getPrice().multiply(BigDecimal.valueOf(2)));
+        // totalAmount = itemsTotal + shippingCost
+        assertThat(createdOrder.getTotalAmount())
+                .isEqualByComparingTo(createdOrder.getItemsTotal().add(createdOrder.getShippingCost()));
         assertThat(createdOrder.getStatus()).isEqualTo(Status.PENDING);
         assertThat(createdOrder.getShippingAddress()).isNotNull();
         assertThat(createdOrder.getShippingAddress().getId()).isEqualTo(address.getId());
         assertThat(createdOrder.getCreatedAt()).isNotNull();
         assertThat(createdOrder.getUpdatedAt()).isNotNull();
 
-        assertThat(createdOrder.getShippingCourierCode()).isNull();
-        assertThat(createdOrder.getShippingCourierService()).isNull();
-        assertThat(createdOrder.getShippingCourierServiceName()).isNull();
-        assertThat(createdOrder.getShippingCost()).isNull();
+        assertThat(createdOrder.getShippingCourierCode()).isEqualTo("jne");
+        assertThat(createdOrder.getShippingCourierService()).isEqualTo("REG");
+        assertThat(createdOrder.getShippingCourierServiceName()).isEqualTo("JNE Regular");
+        assertThat(createdOrder.getShippingCost()).isEqualByComparingTo(new BigDecimal("15000"));
         assertThat(createdOrder.getShippingOrderId()).isNull();
         assertThat(createdOrder.getTrackingId()).isNull();
         assertThat(createdOrder.getEstimatedDeliveryDate()).isNull();
@@ -206,6 +214,10 @@ class OrderControllerIntegrationTest {
         assertThat(createdOrder.getShippingCourierService()).isEqualTo("REG");
         assertThat(createdOrder.getShippingCourierServiceName()).isEqualTo("JNE Regular");
         assertThat(createdOrder.getShippingCost()).isEqualByComparingTo(shippingCost);
+        // Validate totals semantics
+        assertThat(createdOrder.getItemsTotal()).isEqualByComparingTo(product.getPrice());
+        assertThat(createdOrder.getTotalAmount())
+                .isEqualByComparingTo(product.getPrice().add(shippingCost));
     }
 
     @Test
@@ -219,6 +231,10 @@ class OrderControllerIntegrationTest {
 
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("REG")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000"))
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -247,6 +263,10 @@ class OrderControllerIntegrationTest {
 
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("REG")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000.00"))
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)

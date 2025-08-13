@@ -4,7 +4,7 @@ CREATE TABLE payments (
     order_id UUID NOT NULL,
     external_id UUID NOT NULL UNIQUE,
     payment_status VARCHAR(20) NOT NULL,
-    amount NUMERIC(19,2) NOT NULL CHECK (amount > 0),
+    amount NUMERIC(18,2) NOT NULL CHECK (amount > 0),
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     paid_at TIMESTAMP WITHOUT TIME ZONE,
     xendit_invoice_url VARCHAR(500) NOT NULL,

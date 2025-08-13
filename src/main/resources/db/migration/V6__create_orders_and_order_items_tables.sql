@@ -5,6 +5,7 @@ CREATE TABLE orders (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     order_date TIMESTAMP NOT NULL,
+    items_total NUMERIC(18,2) NOT NULL,
     total_amount NUMERIC(18,2) NOT NULL,
     status VARCHAR(32) NOT NULL,
     shipping_address_id UUID NOT NULL,

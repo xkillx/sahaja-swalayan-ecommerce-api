@@ -37,7 +37,7 @@ public class Payment {
     @Column(name = "payment_status", nullable = false, length = 20)
     private PaymentStatus paymentStatus;
 
-    @Column(nullable = false, precision = 19, scale = 2)
+    @Column(nullable = false, precision = 18, scale = 2)
     private BigDecimal amount;
 
     @Column(name = "created_at", nullable = false, updatable = false)

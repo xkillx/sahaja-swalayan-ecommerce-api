@@ -262,7 +262,7 @@ class PaymentControllerIntegrationTest {
                 .shippingCourierCode("jne")
                 .shippingCourierService("reg")
                 .shippingCourierServiceName("JNE Regular")
-                .shippingCost(new BigDecimal("15000"))
+                .shippingCost(new BigDecimal("15000.00"))
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -293,7 +293,8 @@ class PaymentControllerIntegrationTest {
         // Now create payment for the order
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
-                .amount(new BigDecimal("100000.00"))
+                // itemsTotal (2 x 50,000) + shipping (15,000) = 115,000
+                .amount(new BigDecimal("115000.00"))
                 .build();
 
         mockMvc.perform(authenticated(post("/v1/payments"))
@@ -322,6 +323,10 @@ class PaymentControllerIntegrationTest {
         // Create order from cart
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("reg")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000.00"))
                 .build();
         mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -371,7 +376,8 @@ class PaymentControllerIntegrationTest {
         // Create payment
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
-                .amount(new BigDecimal("50000.00"))
+                // itemsTotal (1 x 50,000) + shipping (15,000) = 65,000
+                .amount(new BigDecimal("65000.00"))
                 .build();
 
         String paymentJson = mockMvc.perform(authenticated(post("/v1/payments"))
@@ -429,7 +435,8 @@ class PaymentControllerIntegrationTest {
         // Create payment
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
-                .amount(new BigDecimal("150000.00"))
+                // itemsTotal (3 x 50,000) + shipping (15,000) = 165,000
+                .amount(new BigDecimal("165000.00"))
                 .build();
 
         mockMvc.perform(authenticated(post("/v1/payments"))
@@ -471,13 +478,13 @@ class PaymentControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(orderRequest)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-
         String orderId = objectMapper.readTree(orderJson).path("data").path("id").asText();
 
         // Create payment
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
-                .amount(new BigDecimal("50000.00"))
+                // itemsTotal (1 x 50,000) + shipping (15,000) = 65,000
+                .amount(new BigDecimal("65000.00"))
                 .build();
 
         String paymentJson = mockMvc.perform(authenticated(post("/v1/payments"))
@@ -538,6 +545,10 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("reg")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000.00"))
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -550,7 +561,7 @@ class PaymentControllerIntegrationTest {
         // Create payment
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
-                .amount(new BigDecimal("50000.00"))
+                .amount(new BigDecimal("65000.00"))
                 .build();
 
         String paymentJson = mockMvc.perform(authenticated(post("/v1/payments"))
@@ -590,6 +601,10 @@ class PaymentControllerIntegrationTest {
         // Create order
         OrderRequest orderRequest = OrderRequest.builder()
                 .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("reg")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000.00"))
                 .build();
         String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -602,7 +617,7 @@ class PaymentControllerIntegrationTest {
         // Create payment
         PaymentRequest paymentRequest = PaymentRequest.builder()
                 .orderId(UUID.fromString(orderId))
-                .amount(new BigDecimal("50000.00"))
+                .amount(new BigDecimal("65000.00"))
                 .build();
 
         String paymentJson = mockMvc.perform(authenticated(post("/v1/payments"))
@@ -644,5 +659,122 @@ class PaymentControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value(containsString("Invalid webhook payload")));
+    }
+
+    @Test
+    @DisplayName("Should fail to create payment when amount mismatches order total")
+    void testCreatePayment_AmountMismatch_BadRequest() throws Exception {
+        // Add product to cart (2 x 50,000 = 100,000)
+        String addToCartJson = String.format("{\"productId\":\"%s\",\"quantity\":2}", product.getId());
+        mockMvc.perform(authenticated(post("/v1/cart/items"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(addToCartJson))
+                .andExpect(status().isOk());
+
+        // Create order from cart
+        OrderRequest orderRequest = OrderRequest.builder()
+                .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("reg")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000.00"))
+                .build();
+        String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(orderRequest)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String orderId = objectMapper.readTree(orderJson).path("data").path("id").asText();
+        var order = orderRepository.findById(UUID.fromString(orderId)).orElseThrow();
+        BigDecimal expected = order.getTotalAmount();
+
+        // Prepare mismatched amount (expected - 1)
+        BigDecimal wrongAmount = expected.subtract(new BigDecimal("1.00"));
+        PaymentRequest paymentRequest = PaymentRequest.builder()
+                .orderId(UUID.fromString(orderId))
+                .amount(wrongAmount)
+                .build();
+
+        mockMvc.perform(authenticated(post("/v1/payments"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(paymentRequest)))
+                .andExpect(status().isBadRequest());
+
+        // Assert no payment persisted for the order
+        assertThat(paymentRepository.findByOrderId(UUID.fromString(orderId))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should reject webhook PAID when payment amount mismatches order total")
+    void testWebhook_AmountMismatch_BadRequest() throws Exception {
+        // Add product to cart (1 x 50,000)
+        String addToCartJson = String.format("{\"productId\":\"%s\",\"quantity\":1}", product.getId());
+        mockMvc.perform(authenticated(post("/v1/cart/items"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(addToCartJson))
+                .andExpect(status().isOk());
+
+        // Create order and payment with correct amount
+        OrderRequest orderRequest = OrderRequest.builder()
+                .addressId(address.getId())
+                .shippingCourierCode("jne")
+                .shippingCourierService("reg")
+                .shippingCourierServiceName("JNE Regular")
+                .shippingCost(new BigDecimal("15000.00"))
+                .build();
+        String orderJson = mockMvc.perform(authenticated(post("/v1/orders"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(orderRequest)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String orderId = objectMapper.readTree(orderJson).path("data").path("id").asText();
+        var order = orderRepository.findById(UUID.fromString(orderId)).orElseThrow();
+
+        PaymentRequest paymentRequest = PaymentRequest.builder()
+                .orderId(UUID.fromString(orderId))
+                .amount(order.getTotalAmount())
+                .build();
+
+        String paymentJson = mockMvc.perform(authenticated(post("/v1/payments"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(paymentRequest)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String paymentId = objectMapper.readTree(paymentJson).path("data").path("paymentId").asText();
+        String externalId = objectMapper.readTree(paymentJson).path("data").path("externalId").asText();
+
+        // Tamper order total to mismatch before webhook
+        var tamperOrder = orderRepository.findById(UUID.fromString(orderId)).orElseThrow();
+        tamperOrder.setTotalAmount(tamperOrder.getTotalAmount().add(new BigDecimal("1.00")));
+        orderRepository.save(tamperOrder);
+
+        // Ensure token available
+        if (validCallbackToken == null || validCallbackToken.isBlank()) {
+            validCallbackToken = "cb_token_livekey_9xsWcG5XEwLj2DcZxDq7P0vJxngE1bW28m6V1CulTzr0JVqP7V";
+        }
+
+        XenditWebhookPayload payload = XenditWebhookPayload.builder()
+                .externalId(externalId)
+                .status("PAID")
+                .build();
+
+        mockMvc.perform(post("/v1/payments/webhook")
+                .header("X-Callback-Token", validCallbackToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isBadRequest());
+
+        // Assert payment still PENDING and not paid
+        Payment persisted = paymentRepository.findById(UUID.fromString(paymentId)).orElseThrow();
+        assertThat(persisted.getPaymentStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(persisted.getPaidAt()).isNull();
+
+        // Assert no shipping created due to rejection
+        var updatedOrder = orderRepository.findById(UUID.fromString(orderId)).orElseThrow();
+        assertThat(updatedOrder.getShippingOrderId()).isNull();
+        assertThat(updatedOrder.getTrackingId()).isNull();
+        assertThat(updatedOrder.getShippingStatus()).isNull();
     }
 }

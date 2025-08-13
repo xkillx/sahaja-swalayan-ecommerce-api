@@ -15,6 +15,8 @@ public class OrderDTO {
     private UUID userId;
     @JsonProperty("order_date")
     private LocalDateTime orderDate;
+    @JsonProperty("items_total")
+    private BigDecimal itemsTotal;
     @JsonProperty("total_amount")
     private BigDecimal totalAmount;
     private String status;

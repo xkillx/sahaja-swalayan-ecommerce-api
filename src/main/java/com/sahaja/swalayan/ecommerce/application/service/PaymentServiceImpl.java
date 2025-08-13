@@ -4,6 +4,7 @@ import com.sahaja.swalayan.ecommerce.application.dto.PaymentRequest;
 import com.sahaja.swalayan.ecommerce.application.dto.PaymentResponse;
 import com.sahaja.swalayan.ecommerce.application.dto.XenditWebhookPayload;
 import com.sahaja.swalayan.ecommerce.common.InvalidOrderStateException;
+import com.sahaja.swalayan.ecommerce.common.InvalidPaymentAmountException;
 import com.sahaja.swalayan.ecommerce.common.InvalidXenditWebhookException;
 import com.sahaja.swalayan.ecommerce.common.OrderNotFoundException;
 import com.sahaja.swalayan.ecommerce.common.PaymentNotFoundException;
@@ -76,6 +77,12 @@ public class PaymentServiceImpl implements PaymentService {
             throw new InvalidOrderStateException(
                 "Order status must be PENDING to create a payment. Current status: " + order.getStatus()
             );
+        }
+        // Validate payment amount equals order total
+        var orderTotal = order.getTotalAmount();
+        if (request.getAmount().compareTo(orderTotal) != 0) {
+            log.warn("[createPayment] Amount mismatch for order {}. Requested: {}, Expected: {}", order.getId(), request.getAmount(), orderTotal);
+            throw new InvalidPaymentAmountException("Payment amount does not match order total");
         }
         // Get user from order
         var user = userRepository.findById(order.getUserId())
@@ -170,6 +177,16 @@ public class PaymentServiceImpl implements PaymentService {
                 });
         log.debug("[handleXenditWebhook] Found payment: {}", payment);
         if ("PAID".equalsIgnoreCase(status)) {
+            // Validate that paid amount matches order total before marking as PAID
+            var orderForValidation = orderRepository.findById(payment.getOrderId())
+                    .orElseThrow(() -> new OrderNotFoundException("Order not found: " + payment.getOrderId()));
+            var expectedTotal = orderForValidation.getTotalAmount();
+            if (payment.getAmount() == null || payment.getAmount().compareTo(expectedTotal) != 0) {
+                log.warn("[handleXenditWebhook] Amount mismatch for order {}. Payment: {}, Expected: {}",
+                        orderForValidation.getId(), payment.getAmount(), expectedTotal);
+                throw new InvalidPaymentAmountException("Paid amount does not match order total");
+            }
+
             payment.setPaymentStatus(PaymentStatus.PAID);
             payment.setPaidAt(LocalDateTime.now());
             log.debug("[handleXenditWebhook] Payment marked as PAID. PaymentId: {}", payment.getId());
