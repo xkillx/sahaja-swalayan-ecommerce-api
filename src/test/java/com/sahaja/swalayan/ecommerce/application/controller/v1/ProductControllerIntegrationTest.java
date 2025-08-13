@@ -5,16 +5,21 @@ import com.sahaja.swalayan.ecommerce.application.dto.ProductDTO;
 
 import lombok.extern.slf4j.Slf4j;
 
-import org.junit.jupiter.api.AfterAll;
+import com.sahaja.swalayan.ecommerce.common.JwtTokenUtil;
+import com.sahaja.swalayan.ecommerce.domain.repository.UserRepository;
+import com.sahaja.swalayan.ecommerce.domain.repository.ProductRepository;
+import com.sahaja.swalayan.ecommerce.domain.repository.CategoryRepository;
+import com.sahaja.swalayan.ecommerce.domain.model.user.User;
+import com.sahaja.swalayan.ecommerce.domain.model.user.UserRole;
+import com.sahaja.swalayan.ecommerce.domain.model.user.UserStatus;
+
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -29,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.util.LinkedMultiValueMap;
@@ -53,18 +57,34 @@ public class ProductControllerIntegrationTest {
     private final String testCategoryName = "TestCategoryForProduct";
 
     @BeforeEach
-    void setUpCategory() {
-        // Create new test category
+    void setUpAuthAndCategory() {
+        // Ensure admin user exists for write operations
+        adminUser = User.builder()
+                .name("Admin IT User")
+                .email("admin.product.it@example.com")
+                .passwordHash("dummy")
+                .phone("+620000000000")
+                .role(UserRole.ADMIN)
+                .status(UserStatus.ACTIVE)
+                .build();
+        userRepository.save(adminUser);
+
+        // Create new test category with ADMIN token
         String categoryUrl = "http://localhost:" + port + "/api/v1/categories";
         CategoryDTO categoryDTO = CategoryDTO.builder()
                 .name(testCategoryName)
                 .description("Test Category Desc")
                 .build();
-        ResponseEntity<CategoryDTO> response = restTemplate.postForEntity(categoryUrl, categoryDTO, CategoryDTO.class);
+        ResponseEntity<CategoryDTO> response = restTemplate.exchange(
+                categoryUrl,
+                HttpMethod.POST,
+                new HttpEntity<>(categoryDTO, adminHeaders()),
+                CategoryDTO.class
+        );
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         testCategoryId = response.getBody().getId();
-        log.debug("[setUpCategory] Created test category: {}", testCategoryId);
+        log.debug("[setUpAuthAndCategory] Created test category: {}", testCategoryId);
     }
 
     @AfterEach
@@ -76,7 +96,8 @@ public class ProductControllerIntegrationTest {
                 continue;
             }
             try {
-                restTemplate.delete(getBaseUrl() + "/" + productId);
+                restTemplate.exchange(getBaseUrl() + "/" + productId, HttpMethod.DELETE,
+                        new HttpEntity<>(adminHeaders()), Void.class);
                 log.debug("[cleanUpResources] Deleted product: {}", productId);
             } catch (Exception e) {
                 log.warn("[cleanUpResources] Failed to delete product {}: {}", productId, e.getMessage());
@@ -101,12 +122,26 @@ public class ProductControllerIntegrationTest {
         if (testCategoryId != null) {
             try {
                 String deleteUrl = "http://localhost:" + port + "/api/v1/categories/" + testCategoryId;
-                restTemplate.delete(deleteUrl);
+                restTemplate.exchange(deleteUrl, HttpMethod.DELETE, new HttpEntity<>(adminHeaders()), Void.class);
                 log.debug("[cleanUpResources] Deleted test category: {}", testCategoryId);
             } catch (Exception e) {
                 log.warn("[cleanUpResources] Failed to delete test category {}: {}", testCategoryId, e.getMessage());
             }
             testCategoryId = null;
+        }
+
+        // Clean up users
+        try {
+            if (nonAdminUser != null && nonAdminUser.getId() != null) {
+                userRepository.delete(nonAdminUser);
+                nonAdminUser = null;
+            }
+            if (adminUser != null && adminUser.getId() != null) {
+                userRepository.delete(adminUser);
+                adminUser = null;
+            }
+        } catch (Exception e) {
+            log.warn("[cleanUpResources] Failed to delete users: {}", e.getMessage());
         }
     }
 
@@ -116,8 +151,33 @@ public class ProductControllerIntegrationTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
+    @Autowired
+    private JwtTokenUtil jwtTokenUtil;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    private User adminUser;
+    private User nonAdminUser;
+
     private String getBaseUrl() {
         return "http://localhost:" + port + "/api/v1/products";
+    }
+
+    private HttpHeaders adminHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        // Generate fresh token per call to avoid clock skew issues
+        java.util.Map<String, Object> claims = new java.util.HashMap<>();
+        claims.put("role", "ADMIN");
+        String token = jwtTokenUtil.generateToken(adminUser.getEmail(), claims);
+        headers.setBearerAuth(token);
+        return headers;
     }
 
     @Test
@@ -133,8 +193,12 @@ public class ProductControllerIntegrationTest {
                 .categoryId(testCategoryId)
                 .build();
 
-        ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO,
-                ProductDTO.class);
+        ResponseEntity<ProductDTO> createResponse = restTemplate.exchange(
+                getBaseUrl(),
+                HttpMethod.POST,
+                new HttpEntity<>(productDTO, adminHeaders()),
+                ProductDTO.class
+        );
         assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ProductDTO created = createResponse.getBody();
         assertThat(created).isNotNull();
@@ -145,6 +209,9 @@ public class ProductControllerIntegrationTest {
         assertThat(created.getQuantity()).isEqualTo(10);
         assertThat(created.getWeight()).isEqualTo(5);
         assertThat(created.getCategoryId()).isEqualTo(testCategoryId);
+        // DB assertion
+        assertThat(productRepository.findById(created.getId())).isPresent();
+        assertThat(categoryRepository.findById(testCategoryId)).isPresent();
         productsToCleanup.add(created.getId());
         log.debug("[testCreateProductWithCategory] End");
     }
@@ -160,8 +227,12 @@ public class ProductControllerIntegrationTest {
                 .quantity(3)
                 .weight(1)
                 .build();
-        ResponseEntity<ProductDTO> noCatResponse = restTemplate.postForEntity(getBaseUrl(), noCategoryProduct,
-                ProductDTO.class);
+        ResponseEntity<ProductDTO> noCatResponse = restTemplate.exchange(
+                getBaseUrl(),
+                HttpMethod.POST,
+                new HttpEntity<>(noCategoryProduct, adminHeaders()),
+                ProductDTO.class
+        );
         assertThat(noCatResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ProductDTO noCatCreated = noCatResponse.getBody();
         assertThat(noCatCreated).isNotNull();
@@ -205,8 +276,12 @@ public class ProductControllerIntegrationTest {
                 .weight(2)
                 .categoryId(testCategoryId)
                 .build();
-        ProductDTO savedProduct1 = restTemplate.postForEntity(getBaseUrl(), product1, ProductDTO.class).getBody();
-        ProductDTO savedProduct2 = restTemplate.postForEntity(getBaseUrl(), product2, ProductDTO.class).getBody();
+        ProductDTO savedProduct1 = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(product1, adminHeaders()), ProductDTO.class
+        ).getBody();
+        ProductDTO savedProduct2 = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(product2, adminHeaders()), ProductDTO.class
+        ).getBody();
 
         // get all products
         ResponseEntity<ProductDTO[]> response = restTemplate.getForEntity(getBaseUrl(), ProductDTO[].class);
@@ -215,8 +290,10 @@ public class ProductControllerIntegrationTest {
         assertThat(response.getBody().length).isEqualTo(2);
 
         // delete products after test
-        restTemplate.delete(getBaseUrl() + "/" + savedProduct1.getId());
-        restTemplate.delete(getBaseUrl() + "/" + savedProduct2.getId());
+        restTemplate.exchange(getBaseUrl() + "/" + savedProduct1.getId(), HttpMethod.DELETE,
+                new HttpEntity<>(adminHeaders()), Void.class);
+        restTemplate.exchange(getBaseUrl() + "/" + savedProduct2.getId(), HttpMethod.DELETE,
+                new HttpEntity<>(adminHeaders()), Void.class);
     }
 
     // test update product
@@ -231,8 +308,9 @@ public class ProductControllerIntegrationTest {
                 .quantity(2)
                 .weight(1)
                 .build();
-        ProductDTO savedProduct = restTemplate.postForEntity(getBaseUrl(), uncategorisedProduct, ProductDTO.class)
-                .getBody();
+        ProductDTO savedProduct = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(uncategorisedProduct, adminHeaders()), ProductDTO.class
+        ).getBody();
 
         // update product
         ProductDTO updatedProduct = ProductDTO.builder()
@@ -244,7 +322,7 @@ public class ProductControllerIntegrationTest {
                 .categoryId(testCategoryId)
                 .build();
         ResponseEntity<ProductDTO> response = restTemplate.exchange(getBaseUrl() + "/" + savedProduct.getId(),
-                HttpMethod.PUT, new HttpEntity<>(updatedProduct), ProductDTO.class);
+                HttpMethod.PUT, new HttpEntity<>(updatedProduct, adminHeaders()), ProductDTO.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getName()).isEqualTo("Updated Product 1");
@@ -255,7 +333,8 @@ public class ProductControllerIntegrationTest {
         assertThat(response.getBody().getCategoryId()).isEqualTo(testCategoryId);
 
         // delete product after test
-        restTemplate.delete(getBaseUrl() + "/" + savedProduct.getId());
+        restTemplate.exchange(getBaseUrl() + "/" + savedProduct.getId(), HttpMethod.DELETE,
+                new HttpEntity<>(adminHeaders()), Void.class);
     }
 
     // test delete product
@@ -271,11 +350,13 @@ public class ProductControllerIntegrationTest {
                 .weight(1)
                 .categoryId(testCategoryId)
                 .build();
-        ProductDTO savedProduct = restTemplate.postForEntity(getBaseUrl(), product, ProductDTO.class).getBody();
+        ProductDTO savedProduct = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(product, adminHeaders()), ProductDTO.class
+        ).getBody();
 
         // delete product
         ResponseEntity<Void> response = restTemplate.exchange(getBaseUrl() + "/" + savedProduct.getId(),
-                HttpMethod.DELETE, null, Void.class);
+                HttpMethod.DELETE, new HttpEntity<>(adminHeaders()), Void.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
 
@@ -293,7 +374,9 @@ public class ProductControllerIntegrationTest {
                 .categoryId(invalidCategoryId)
                 .build();
 
-        ResponseEntity<String> response = restTemplate.postForEntity(getBaseUrl(), product, String.class);
+        ResponseEntity<String> response = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(product, adminHeaders()), String.class
+        );
         // Should return 400 BAD_REQUEST with ApiResponse error
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).contains("Invalid categoryId supplied");
@@ -305,7 +388,7 @@ public class ProductControllerIntegrationTest {
     void testCreateProductWithMalformedJson() {
         // Intentionally malformed JSON (missing closing brace)
         String malformedJson = "{\"name\": \"Bad Product\", \"price\": 10.00, ";
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = adminHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<String> request = new HttpEntity<>(malformedJson, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(getBaseUrl(), request, String.class);
@@ -327,7 +410,9 @@ public class ProductControllerIntegrationTest {
                 .categoryId(null) // null category
                 .build();
 
-        ResponseEntity<String> response = restTemplate.postForEntity(getBaseUrl(), invalidProduct, String.class);
+        ResponseEntity<String> response = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(invalidProduct, adminHeaders()), String.class
+        );
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         String responseBody = response.getBody();
         // Assert all expected validation error messages are present
@@ -354,8 +439,9 @@ public class ProductControllerIntegrationTest {
                 .weight(1)
                 .categoryId(testCategoryId)
                 .build();
-        ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO,
-                ProductDTO.class);
+        ResponseEntity<ProductDTO> createResponse = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(productDTO, adminHeaders()), ProductDTO.class
+        );
         assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         ProductDTO created = createResponse.getBody();
         assertThat(created).isNotNull();
@@ -365,7 +451,7 @@ public class ProductControllerIntegrationTest {
         ClassPathResource imageResource = new ClassPathResource("test-image.png");
         LinkedMultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
         parts.add("file", imageResource);
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = adminHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(parts, headers);
 
@@ -403,8 +489,9 @@ public class ProductControllerIntegrationTest {
                     .weight(1)
                     .categoryId(testCategoryId)
                     .build();
-            ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO,
-                    ProductDTO.class);
+            ResponseEntity<ProductDTO> createResponse = restTemplate.exchange(
+                    getBaseUrl(), HttpMethod.POST, new HttpEntity<>(productDTO, adminHeaders()), ProductDTO.class
+            );
             assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
             ProductDTO created = createResponse.getBody();
             assertThat(created).isNotNull();
@@ -416,7 +503,7 @@ public class ProductControllerIntegrationTest {
             ClassPathResource imageResource = new ClassPathResource("test-image.png");
             LinkedMultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
             parts.add("file", imageResource);
-            HttpHeaders headers = new HttpHeaders();
+            HttpHeaders headers = adminHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(parts, headers);
 
@@ -463,8 +550,9 @@ public class ProductControllerIntegrationTest {
                     .weight(1)
                     .categoryId(testCategoryId)
                     .build();
-            ResponseEntity<ProductDTO> createResponse = restTemplate.postForEntity(getBaseUrl(), productDTO,
-                    ProductDTO.class);
+            ResponseEntity<ProductDTO> createResponse = restTemplate.exchange(
+                    getBaseUrl(), HttpMethod.POST, new HttpEntity<>(productDTO, adminHeaders()), ProductDTO.class
+            );
             assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
             ProductDTO created = createResponse.getBody();
             assertThat(created).isNotNull();
@@ -476,7 +564,7 @@ public class ProductControllerIntegrationTest {
             ClassPathResource imageResource = new ClassPathResource("test-image.png");
             LinkedMultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
             parts.add("file", imageResource);
-            HttpHeaders headers = new HttpHeaders();
+            HttpHeaders headers = adminHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(parts, headers);
 
@@ -506,5 +594,58 @@ public class ProductControllerIntegrationTest {
             throw e;
         }
         log.debug("[testStaticServingOfProductImage] End");
+    }
+
+    @Test
+    @Order(13)
+    void testCreateProduct_UnauthorizedWithoutToken() {
+        ProductDTO productDTO = ProductDTO.builder()
+                .name("Unauthorized Product")
+                .description("Should be 401")
+                .price(new BigDecimal("10.00"))
+                .quantity(1)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+
+        ResponseEntity<String> response = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(productDTO), String.class
+        );
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @Order(14)
+    void testCreateProduct_ForbiddenForNonAdmin() {
+        // create CUSTOMER user and token
+        nonAdminUser = User.builder()
+                .name("Non Admin User")
+                .email("customer.product.it@example.com")
+                .passwordHash("dummy")
+                .phone("+620000000001")
+                .role(UserRole.CUSTOMER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        userRepository.save(nonAdminUser);
+
+        java.util.Map<String, Object> claims = new java.util.HashMap<>();
+        claims.put("role", "CUSTOMER");
+        String token = jwtTokenUtil.generateToken(nonAdminUser.getEmail(), claims);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+
+        ProductDTO productDTO = ProductDTO.builder()
+                .name("Forbidden Product")
+                .description("Should be 403")
+                .price(new BigDecimal("10.00"))
+                .quantity(1)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+
+        ResponseEntity<String> response = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(productDTO, headers), String.class
+        );
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 }

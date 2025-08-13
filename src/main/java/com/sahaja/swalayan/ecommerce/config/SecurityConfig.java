@@ -96,15 +96,21 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/v1/auth/confirm").permitAll()
                 .requestMatchers(HttpMethod.POST, "/v1/auth/login").permitAll()
                 
-                // Public endpoints - Product and Category APIs
-                .requestMatchers("/v1/products/**").permitAll()
-                .requestMatchers("/v1/categories/**").permitAll()
+                // Product APIs - method-based access control
+                .requestMatchers(HttpMethod.GET, "/v1/products/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/v1/products/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/v1/products/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/v1/products/**").hasRole("ADMIN")
+
+                // Category APIs - method-based access control
+                .requestMatchers(HttpMethod.GET, "/v1/categories/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/v1/categories/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/v1/categories/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/v1/categories/**").hasRole("ADMIN")
 
                 // Public endpoint for static product images
                 .requestMatchers("/uploads/products/**").permitAll()
 
-                // Public endpoint for static product images
-                .requestMatchers("/uploads/products/**").permitAll()
                 
                 // Public endpoints - Payment webhooks (secured by callback token)
                 .requestMatchers("/v1/payments/webhook").permitAll()
