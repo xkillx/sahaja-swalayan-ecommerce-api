@@ -7,4 +7,7 @@ public interface EmailService {
     
     // Synchronous method for backward compatibility
     void sendConfirmationEmail(String to, String token);
+
+    // Send a generic HTML email with dynamic to/subject/htmlContent
+    void sendHtmlEmail(String to, String subject, String htmlContent);
 }

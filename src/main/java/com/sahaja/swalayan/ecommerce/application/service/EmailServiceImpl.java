@@ -54,6 +54,25 @@ public class EmailServiceImpl implements EmailService {
         sendConfirmationEmailInternal(to, token);
     }
     
+    @Override
+    public void sendHtmlEmail(String to, String subject, String htmlContent) {
+        try {
+            EmailRequest emailRequest = EmailRequest.builder()
+                    .fromEmail(fromEmail)
+                    .fromName(fromName)
+                    .toEmail(to)
+                    .subject(subject)
+                    .htmlContent(htmlContent)
+                    .build();
+            
+            emailProvider.sendEmail(emailRequest);
+            log.info("HTML email sent successfully to: {} via {}", to, emailProvider.getProviderName());
+        } catch (EmailSendException e) {
+            log.error("Failed to send HTML email to: {}. Error: {}", to, e.getMessage(), e);
+            throw new RuntimeException("Failed to send HTML email", e);
+        }
+    }
+    
     private void sendConfirmationEmailInternal(String to, String token) {
         try {
             EmailRequest emailRequest = EmailRequest.builder()

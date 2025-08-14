@@ -37,10 +37,15 @@ spring:
 
 # Email Configuration
 email:
-  provider: ${EMAIL_PROVIDER:mailtrap}  # Options: mailtrap, sendgrid, ses, smtp
+  provider: ${EMAIL_PROVIDER:resend}  # Options: mailtrap, resend, sendgrid, ses, smtp
   from:
     address: ${EMAIL_FROM_ADDRESS:noreply@sahajaswalayan.com}
     name: ${EMAIL_FROM_NAME:Sahaja Swalayan}
+
+# Resend Email Configuration
+resend:
+  api:
+    key: ${RESEND_API_KEY:re_GgoVidMg_GfExt9eZZHoy2bdpy5jgSRBq}
 
 # JWT Configuration
 jwt:
