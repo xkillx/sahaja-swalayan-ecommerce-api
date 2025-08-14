@@ -37,12 +37,13 @@ import java.lang.annotation.Target;
                         "name": "Samsung Galaxy S24",
                         "description": "Latest flagship smartphone with advanced camera and AI features",
                         "price": 999.99,
-                        "stockQuantity": 50,
-                        "categoryId": "123e4567-e89b-12d3-a456-426614174000",
+                        "quantity": 50,
+                        "category_id": "123e4567-e89b-12d3-a456-426614174000",
                         "sku": "SGS24-128GB-BLK",
-                        "brand": "Samsung",
-                        "weight": 0.168,
-                        "dimensions": "14.7 x 7.1 x 0.79 cm"
+                        "weight": 168,
+                        "height": 147,
+                        "length": 71,
+                        "width": 8
                     }
                     """
                 ),
@@ -54,12 +55,10 @@ import java.lang.annotation.Target;
                         "name": "Premium Cotton T-Shirt",
                         "description": "Comfortable 100% organic cotton t-shirt available in multiple sizes",
                         "price": 29.99,
-                        "stockQuantity": 100,
-                        "categoryId": "456e7890-e89b-12d3-a456-426614174001",
+                        "quantity": 100,
+                        "category_id": "456e7890-e89b-12d3-a456-426614174001",
                         "sku": "PCT-M-BLU",
-                        "brand": "EcoWear",
-                        "weight": 0.2,
-                        "dimensions": "Medium size"
+                        "weight": 200
                     }
                     """
                 )

@@ -3,7 +3,6 @@ package com.sahaja.swalayan.ecommerce.infrastructure.swagger;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.lang.annotation.ElementType;
@@ -23,7 +22,7 @@ import java.lang.annotation.Target;
             mediaType = "application/json",
             examples = @ExampleObject(
                 name = "Product List",
-                value = "[\n  {\n    \"id\": \"123e4567-e89b-12d3-a456-426614174000\",\n    \"name\": \"Samsung Galaxy S24\",\n    \"description\": \"Latest flagship smartphone\",\n    \"price\": 999.99,\n    \"stockQuantity\": 50,\n    \"categoryId\": \"456e7890-e89b-12d3-a456-426614174001\",\n    \"sku\": \"SGS24-128GB-BLK\",\n    \"brand\": \"Samsung\",\n    \"weight\": 0.168,\n    \"dimensions\": \"14.7 x 7.1 x 0.79 cm\"\n  }\n]"
+                value = "[\n  {\n    \"id\": \"123e4567-e89b-12d3-a456-426614174000\",\n    \"name\": \"Samsung Galaxy S24\",\n    \"description\": \"Latest flagship smartphone\",\n    \"price\": 999.99,\n    \"quantity\": 50,\n    \"category_id\": \"456e7890-e89b-12d3-a456-426614174001\",\n    \"sku\": \"SGS24-128GB-BLK\",\n    \"weight\": 168,\n    \"height\": 147,\n    \"length\": 71,\n    \"width\": 8\n  }\n]"
             )
         )
     ),

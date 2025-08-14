@@ -22,7 +22,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Operation(
     summary = "Update an existing product",
-    description = "Updates an existing product with the provided details. All fields are optional and only provided fields will be updated.",
+    description = "Updates an existing product with the provided details. Provide a full product payload consistent with validations (required: name, price, quantity, weight).",
     parameters = @Parameter(
         name = "id",
         description = "Unique identifier of the product to update",
@@ -43,12 +43,13 @@ import java.lang.annotation.Target;
                     "name": "Samsung Galaxy S24 Ultra",
                     "description": "Updated flagship smartphone with enhanced features and larger display",
                     "price": 1199.99,
-                    "stockQuantity": 75,
-                    "categoryId": "123e4567-e89b-12d3-a456-426614174000",
+                    "quantity": 75,
+                    "category_id": "123e4567-e89b-12d3-a456-426614174000",
                     "sku": "SGS24U-256GB-BLK",
-                    "brand": "Samsung",
-                    "weight": 0.233,
-                    "dimensions": "16.3 x 7.9 x 0.89 cm"
+                    "weight": 233,
+                    "height": 163,
+                    "length": 79,
+                    "width": 9
                 }
                 """
             )
