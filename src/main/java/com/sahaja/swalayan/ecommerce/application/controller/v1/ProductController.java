@@ -6,16 +6,23 @@ import com.sahaja.swalayan.ecommerce.domain.model.product.Category;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Product;
 import com.sahaja.swalayan.ecommerce.domain.service.CategoryService;
 import com.sahaja.swalayan.ecommerce.domain.service.ProductService;
+import com.sahaja.swalayan.ecommerce.domain.service.ProductSearchService;
 import com.sahaja.swalayan.ecommerce.domain.service.FileStorageService;
 import com.sahaja.swalayan.ecommerce.common.CategoryNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import com.sahaja.swalayan.ecommerce.infrastructure.swagger.*;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import io.swagger.v3.oas.annotations.Operation;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,21 +31,14 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping(value = "/v1/products")
 @ApiProductController
 @Slf4j
+@RequiredArgsConstructor
 public class ProductController {
 
     private final ProductService productService;
     private final ProductMapper productMapper;
     private final CategoryService categoryService;
     private final FileStorageService fileStorageService;
-
-    @Autowired
-    public ProductController(ProductService productService, ProductMapper productMapper,
-            CategoryService categoryService, FileStorageService fileStorageService) {
-        this.productService = productService;
-        this.productMapper = productMapper;
-        this.categoryService = categoryService;
-        this.fileStorageService = fileStorageService;
-    }
+    private final ProductSearchService productSearchService;
 
     @GetMapping
     @ApiGetAllProductsOperation
@@ -107,10 +107,18 @@ public class ProductController {
     }
 
     @GetMapping(value = "/search")
-    @ApiSearchProductOperation
-    public ResponseEntity<ProductDTO> getProductByName(@RequestParam String name) {
-        Product product = productService.findByName(name);
-        ProductDTO productDTO = productMapper.toDto(product);
-        return ResponseEntity.ok(productDTO);
+    @Operation(
+        summary = "Search products",
+        description = "Keyword search on name, description, and sku with optional filters for category (UUID), price range, and availability. Supports pagination and sorting."
+    )
+    public ResponseEntity<Page<Product>> searchProducts(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Boolean available,
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
+        Page<Product> result = productSearchService.search(keyword, categoryId, minPrice, maxPrice, available, pageable);
+        return ResponseEntity.ok(result);
     }
 }

@@ -35,6 +35,9 @@ import java.util.List;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -647,5 +650,279 @@ public class ProductControllerIntegrationTest {
                 getBaseUrl(), HttpMethod.POST, new HttpEntity<>(productDTO, headers), String.class
         );
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @Order(15)
+    void testSearchByKeyword_withCategoryScope() throws Exception {
+        // Arrange: create two products under the test category
+        ProductDTO p1 = ProductDTO.builder()
+                .name("Ultra Keyword Phone")
+                .description("Amazing smartphone with ultra camera")
+                .price(new BigDecimal("999.99"))
+                .quantity(5)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+        ProductDTO p2 = ProductDTO.builder()
+                .name("Basic Feature Phone")
+                .description("Simple device")
+                .price(new BigDecimal("49.99"))
+                .quantity(3)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+
+        ProductDTO c1 = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(p1, adminHeaders()), ProductDTO.class
+        ).getBody();
+        ProductDTO c2 = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(p2, adminHeaders()), ProductDTO.class
+        ).getBody();
+        assertThat(c1).isNotNull();
+        assertThat(c2).isNotNull();
+        productsToCleanup.add(c1.getId());
+        productsToCleanup.add(c2.getId());
+        // DB assertions
+        assertThat(productRepository.findById(c1.getId())).isPresent();
+        assertThat(productRepository.findById(c2.getId())).isPresent();
+
+        // Act: search by keyword within the category
+        String url = getBaseUrl() + "/search?keyword=ultra&categoryId=" + testCategoryId;
+        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(response.getBody());
+        JsonNode content = root.get("content");
+        assertThat(content).isNotNull();
+        assertThat(content.size()).isGreaterThanOrEqualTo(1);
+        List<String> names = new ArrayList<>();
+        for (JsonNode item : content) {
+            names.add(item.get("name").asText());
+        }
+        assertThat(names).anyMatch(n -> n.toLowerCase().contains("ultra"));
+        assertThat(names).allMatch(n -> n != null && !n.isEmpty());
+    }
+
+    @Test
+    @Order(16)
+    void testSearchByCategory_onlyReturnsInCategory() throws Exception {
+        // Arrange: one in test category, one in Uncategorised (omit categoryId)
+        ProductDTO inCat = ProductDTO.builder()
+                .name("Cat Product A")
+                .description("In category")
+                .price(new BigDecimal("10.00"))
+                .quantity(1)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+        ProductDTO uncat = ProductDTO.builder()
+                .name("Uncat Product B")
+                .description("No category provided")
+                .price(new BigDecimal("12.00"))
+                .quantity(1)
+                .weight(1)
+                .build();
+
+        ProductDTO savedInCat = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(inCat, adminHeaders()), ProductDTO.class
+        ).getBody();
+        ProductDTO savedUncat = restTemplate.exchange(
+                getBaseUrl(), HttpMethod.POST, new HttpEntity<>(uncat, adminHeaders()), ProductDTO.class
+        ).getBody();
+        assertThat(savedInCat).isNotNull();
+        assertThat(savedUncat).isNotNull();
+        productsToCleanup.add(savedInCat.getId());
+        productsToCleanup.add(savedUncat.getId());
+
+        // Act: search with categoryId filter
+        String url = getBaseUrl() + "/search?categoryId=" + testCategoryId;
+        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+
+        // Assert only items from the category are present
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode content = mapper.readTree(response.getBody()).get("content");
+        assertThat(content).isNotNull();
+        for (JsonNode item : content) {
+            JsonNode categoryNode = item.get("category");
+            assertThat(categoryNode).isNotNull();
+            assertThat(UUID.fromString(categoryNode.get("id").asText())).isEqualTo(testCategoryId);
+        }
+    }
+
+    @Test
+    @Order(17)
+    void testSearchByPriceRange_filtersByMinAndMax() throws Exception {
+        // Arrange: three products with different prices
+        ProductDTO p10 = ProductDTO.builder()
+                .name("Price 10")
+                .description("P10")
+                .price(new BigDecimal("10.00"))
+                .quantity(1)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+        ProductDTO p20 = ProductDTO.builder()
+                .name("Price 20")
+                .description("P20")
+                .price(new BigDecimal("20.00"))
+                .quantity(1)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+        ProductDTO p30 = ProductDTO.builder()
+                .name("Price 30")
+                .description("P30")
+                .price(new BigDecimal("30.00"))
+                .quantity(1)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+
+        ProductDTO c10 = restTemplate.exchange(getBaseUrl(), HttpMethod.POST,
+                new HttpEntity<>(p10, adminHeaders()), ProductDTO.class).getBody();
+        ProductDTO c20 = restTemplate.exchange(getBaseUrl(), HttpMethod.POST,
+                new HttpEntity<>(p20, adminHeaders()), ProductDTO.class).getBody();
+        ProductDTO c30 = restTemplate.exchange(getBaseUrl(), HttpMethod.POST,
+                new HttpEntity<>(p30, adminHeaders()), ProductDTO.class).getBody();
+        assertThat(c10).isNotNull();
+        assertThat(c20).isNotNull();
+        assertThat(c30).isNotNull();
+        productsToCleanup.add(c10.getId());
+        productsToCleanup.add(c20.getId());
+        productsToCleanup.add(c30.getId());
+
+        // Act: min=15, max=25 should return only 20
+        String url = getBaseUrl() + "/search?categoryId=" + testCategoryId + "&minPrice=15&maxPrice=25";
+        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode content = mapper.readTree(response.getBody()).get("content");
+        assertThat(content).isNotNull();
+        assertThat(content.size()).isEqualTo(1);
+        assertThat(content.get(0).get("name").asText()).isEqualTo("Price 20");
+        assertThat(new BigDecimal(content.get(0).get("price").asText())).isEqualByComparingTo("20.00");
+    }
+
+    @Test
+    @Order(18)
+    void testSearchByAvailability_trueAndFalse() throws Exception {
+        // Arrange: available and not available
+        ProductDTO available = ProductDTO.builder()
+                .name("Available X")
+                .description("stock > 0")
+                .price(new BigDecimal("5.00"))
+                .quantity(2)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+        ProductDTO notAvailable = ProductDTO.builder()
+                .name("Not Available Y")
+                .description("stock = 0")
+                .price(new BigDecimal("5.00"))
+                .quantity(0)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+
+        ProductDTO cAvail = restTemplate.exchange(getBaseUrl(), HttpMethod.POST,
+                new HttpEntity<>(available, adminHeaders()), ProductDTO.class).getBody();
+        ProductDTO cNotAvail = restTemplate.exchange(getBaseUrl(), HttpMethod.POST,
+                new HttpEntity<>(notAvailable, adminHeaders()), ProductDTO.class).getBody();
+        assertThat(cAvail).isNotNull();
+        assertThat(cNotAvail).isNotNull();
+        productsToCleanup.add(cAvail.getId());
+        productsToCleanup.add(cNotAvail.getId());
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        // Act + Assert: available=true
+        String urlTrue = getBaseUrl() + "/search?categoryId=" + testCategoryId + "&available=true";
+        ResponseEntity<String> respTrue = restTemplate.getForEntity(urlTrue, String.class);
+        assertThat(respTrue.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode contentTrue = mapper.readTree(respTrue.getBody()).get("content");
+        assertThat(contentTrue).isNotNull();
+        for (JsonNode item : contentTrue) {
+            assertThat(item.get("quantity").asInt()).isGreaterThan(0);
+        }
+
+        // Act + Assert: available=false
+        String urlFalse = getBaseUrl() + "/search?categoryId=" + testCategoryId + "&available=false";
+        ResponseEntity<String> respFalse = restTemplate.getForEntity(urlFalse, String.class);
+        assertThat(respFalse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode contentFalse = mapper.readTree(respFalse.getBody()).get("content");
+        assertThat(contentFalse).isNotNull();
+        for (JsonNode item : contentFalse) {
+            assertThat(item.get("quantity").asInt()).isEqualTo(0);
+        }
+    }
+
+    @Test
+    @Order(19)
+    void testSearchPaginationAndSorting_byPriceDesc() throws Exception {
+        // Arrange: create three products with different prices
+        ProductDTO a = ProductDTO.builder()
+                .name("Paginated A")
+                .description("A")
+                .price(new BigDecimal("30.00"))
+                .quantity(1)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+        ProductDTO b = ProductDTO.builder()
+                .name("Paginated B")
+                .description("B")
+                .price(new BigDecimal("20.00"))
+                .quantity(1)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+        ProductDTO c = ProductDTO.builder()
+                .name("Paginated C")
+                .description("C")
+                .price(new BigDecimal("10.00"))
+                .quantity(1)
+                .weight(1)
+                .categoryId(testCategoryId)
+                .build();
+
+        ProductDTO ca = restTemplate.exchange(getBaseUrl(), HttpMethod.POST,
+                new HttpEntity<>(a, adminHeaders()), ProductDTO.class).getBody();
+        ProductDTO cb = restTemplate.exchange(getBaseUrl(), HttpMethod.POST,
+                new HttpEntity<>(b, adminHeaders()), ProductDTO.class).getBody();
+        ProductDTO cc = restTemplate.exchange(getBaseUrl(), HttpMethod.POST,
+                new HttpEntity<>(c, adminHeaders()), ProductDTO.class).getBody();
+        assertThat(ca).isNotNull();
+        assertThat(cb).isNotNull();
+        assertThat(cc).isNotNull();
+        productsToCleanup.add(ca.getId());
+        productsToCleanup.add(cb.getId());
+        productsToCleanup.add(cc.getId());
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        // Page 0, size 2, sort price desc -> [30, 20]
+        String urlPage0 = getBaseUrl() + "/search?categoryId=" + testCategoryId + "&page=0&size=2&sort=price,desc";
+        ResponseEntity<String> resp0 = restTemplate.getForEntity(urlPage0, String.class);
+        assertThat(resp0.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode content0 = mapper.readTree(resp0.getBody()).get("content");
+        assertThat(content0.size()).isEqualTo(2);
+        BigDecimal p0 = new BigDecimal(content0.get(0).get("price").asText());
+        BigDecimal p1 = new BigDecimal(content0.get(1).get("price").asText());
+        assertThat(p0).isGreaterThanOrEqualTo(p1);
+
+        // Page 1, size 2 -> remaining [10]
+        String urlPage1 = getBaseUrl() + "/search?categoryId=" + testCategoryId + "&page=1&size=2&sort=price,desc";
+        ResponseEntity<String> resp1 = restTemplate.getForEntity(urlPage1, String.class);
+        assertThat(resp1.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode content1 = mapper.readTree(resp1.getBody()).get("content");
+        assertThat(content1.size()).isEqualTo(1);
+        BigDecimal pOnly = new BigDecimal(content1.get(0).get("price").asText());
+        assertThat(pOnly).isEqualByComparingTo("10.00");
     }
 }
