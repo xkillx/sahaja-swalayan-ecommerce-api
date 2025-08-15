@@ -36,22 +36,20 @@ public class ProductSearchServiceImpl implements ProductSearchService {
             maxPrice = tmp;
         }
 
-        Specification<Product> spec = Specification.where(null);
-
         Specification<Product> keywordSpec = ProductSpecifications.keyword(keyword);
-        if (keywordSpec != null) spec = spec.and(keywordSpec);
-
         Specification<Product> categorySpec = ProductSpecifications.categoryId(categoryId);
-        if (categorySpec != null) spec = spec.and(categorySpec);
-
         Specification<Product> minPriceSpec = ProductSpecifications.minPrice(minPrice);
-        if (minPriceSpec != null) spec = spec.and(minPriceSpec);
-
         Specification<Product> maxPriceSpec = ProductSpecifications.maxPrice(maxPrice);
-        if (maxPriceSpec != null) spec = spec.and(maxPriceSpec);
-
         Specification<Product> availableSpec = ProductSpecifications.available(available);
-        if (availableSpec != null) spec = spec.and(availableSpec);
+
+        // Compose all non-null specifications. allOf(...) safely ignores nulls.
+        Specification<Product> spec = Specification.allOf(
+                keywordSpec,
+                categorySpec,
+                minPriceSpec,
+                maxPriceSpec,
+                availableSpec
+        );
 
         return productJpaRepository.findAll(spec, pageable);
     }

@@ -4,14 +4,19 @@ import com.sahaja.swalayan.ecommerce.application.dto.CategoryDTO;
 import com.sahaja.swalayan.ecommerce.application.mapper.CategoryMapper;
 import com.sahaja.swalayan.ecommerce.domain.model.product.Category;
 import com.sahaja.swalayan.ecommerce.domain.service.CategoryService;
+import com.sahaja.swalayan.ecommerce.domain.service.CategorySearchService;
 import com.sahaja.swalayan.ecommerce.infrastructure.swagger.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,15 +25,11 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/v1/categories")
 @Tag(name = "Category API", description = "Operations related to product categories")
+@RequiredArgsConstructor
 public class CategoryController {
     private final CategoryService categoryService;
     private final CategoryMapper categoryMapper;
-
-    @Autowired
-    public CategoryController(CategoryService categoryService, CategoryMapper categoryMapper) {
-        this.categoryService = categoryService;
-        this.categoryMapper = categoryMapper;
-    }
+    private final CategorySearchService categorySearchService;
 
     @PostMapping
     @ApiCreateCategoryOperation
@@ -158,33 +159,15 @@ public class CategoryController {
 
     @GetMapping("/search")
     @Operation(
-        summary = "Search for a category by name",
-        description = "Finds a category by its exact name. The search is case-sensitive.",
-        parameters = @Parameter(
-            name = "name",
-            description = "Exact name of the category to search for",
-            required = true,
-            example = "Electronics"
-        )
+        summary = "Search categories",
+        description = "Search by partial name and/or description (case-insensitive). Supports pagination and sorting."
     )
-    @ApiSuccessResponseWithExample(
-        description = "Category found successfully",
-        exampleName = "Search Result",
-        example = """
-        {
-            "id": "123e4567-e89b-12d3-a456-426614174000",
-            "name": "Electronics",
-            "description": "Electronic devices and accessories including smartphones, laptops, and gadgets",
-            "createdAt": "2025-01-21T12:56:03",
-            "updatedAt": "2025-01-21T12:56:03"
-        }
-        """
-    )
-    @ApiBadRequestResponse
-    @ApiNotFoundResponse
-    @ApiServerErrorResponse
-    public ResponseEntity<CategoryDTO> getCategoryByName(@RequestParam String name) {
-        Category category = categoryService.findByName(name);
-        return ResponseEntity.ok(categoryMapper.toDTO(category));
+    public ResponseEntity<Page<CategoryDTO>> searchCategories(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String description,
+            @PageableDefault(sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
+        Page<Category> result = categorySearchService.search(name, description, pageable);
+        Page<CategoryDTO> dtoPage = result.map(categoryMapper::toDTO);
+        return ResponseEntity.ok(dtoPage);
     }
 }
