@@ -168,7 +168,8 @@ public class CartServiceImpl implements CartService {
                             price,
                             item.getQuantity(),
                             subtotal,
-                            product.getImageUrl()
+                            product.getImageUrl(),
+                            product.getWeight()
                     );
                 })
                 .toList();

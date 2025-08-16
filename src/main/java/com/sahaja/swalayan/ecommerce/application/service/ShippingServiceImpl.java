@@ -13,6 +13,8 @@ import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.Cancel
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancelOrderRequestDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancelOrderResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.TrackingResponseDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.PricingDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRetrieveDTO;
 import com.sahaja.swalayan.ecommerce.common.ShippingException;
 import com.sahaja.swalayan.ecommerce.infrastructure.config.CacheConfig;
 import lombok.extern.slf4j.Slf4j;
@@ -20,11 +22,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+
 @Slf4j
 @Service
 public class ShippingServiceImpl implements ShippingService {
 
     private final BiteshipShippingClient biteshipShippingClient;
+
+    @org.springframework.beans.factory.annotation.Value("${shipping.stub.enabled:false}")
+    private boolean shippingStubEnabled;
 
     @Autowired
     public ShippingServiceImpl(BiteshipShippingClient biteshipShippingClient) {
@@ -49,18 +59,195 @@ public class ShippingServiceImpl implements ShippingService {
         }
     }
 
+    private boolean stubEnabled() {
+        try {
+            if (shippingStubEnabled) return true; // from application.yaml
+            String flag = System.getenv("SHIPPING_STUB");
+            if (flag == null) flag = System.getProperty("shipping.stub.enabled");
+            return flag != null && flag.trim().equalsIgnoreCase("true");
+        } catch (Exception ignore) {
+            return false;
+        }
+    }
+
+    private CourierResponseDTO buildStubCouriers() {
+        List<CourierRetrieveDTO> list = new ArrayList<>();
+        list.add(CourierRetrieveDTO.builder()
+                .courierName("Gojek")
+                .courierCode("gojek")
+                .courierServiceName("Instant")
+                .courierServiceCode("instant")
+                .serviceType("same_day")
+                .shippingType("parcel")
+                .description("On Demand Instant (bike)")
+                .shipmentDurationRange("1 - 3")
+                .shipmentDurationUnit("hours")
+                .availableForInstantWaybillId(true)
+                .build());
+        list.add(CourierRetrieveDTO.builder()
+                .courierName("Gojek")
+                .courierCode("gojek")
+                .courierServiceName("Same Day")
+                .courierServiceCode("same_day")
+                .serviceType("same_day")
+                .shippingType("parcel")
+                .description("On Demand within 8 hours (bike)")
+                .shipmentDurationRange("6 - 8")
+                .shipmentDurationUnit("hours")
+                .availableForInstantWaybillId(true)
+                .build());
+        list.add(CourierRetrieveDTO.builder()
+                .courierName("Lalamove")
+                .courierCode("lalamove")
+                .courierServiceName("Instant")
+                .courierServiceCode("instant")
+                .serviceType("same_day")
+                .shippingType("parcel")
+                .description("Instant Delivery")
+                .shipmentDurationRange("1 - 3")
+                .shipmentDurationUnit("hours")
+                .availableForInstantWaybillId(true)
+                .build());
+        list.add(CourierRetrieveDTO.builder()
+                .courierName("JNE")
+                .courierCode("jne")
+                .courierServiceName("Reguler")
+                .courierServiceCode("reg")
+                .serviceType("regular")
+                .shippingType("parcel")
+                .description("Regular Service")
+                .shipmentDurationRange("2 - 4")
+                .shipmentDurationUnit("days")
+                .availableForInstantWaybillId(false)
+                .build());
+        return CourierResponseDTO.builder()
+                .success(true)
+                .object("courier")
+                .couriers(list)
+                .build();
+    }
+
     @Override
     @Cacheable(value = CacheConfig.CACHE_COURIERS, key = "'all'", unless = "#result == null")
     public CourierResponseDTO getAvailableCouriers() {
         log.debug("Starting getAvailableCouriers");
         try {
+            if (stubEnabled()) {
+                log.debug("SHIPPING_STUB enabled: returning stubbed couriers");
+                return buildStubCouriers();
+            }
             CourierResponseDTO response = biteshipShippingClient.getAvailableCouriers();
+            if (response != null && response.getCouriers() != null) {
+                // Filter to only allow gojek, lalamove, and jne as requested
+                var filtered = response.getCouriers().stream()
+                        .filter(c -> {
+                            String code = c.getCourierCode();
+                            if (code == null) return false;
+                            String lc = code.trim().toLowerCase(Locale.ROOT);
+                            return lc.equals("gojek") || lc.equals("lalamove") || lc.equals("jne");
+                        })
+                        .toList();
+                response.setCouriers(filtered);
+                log.debug("Filtered couriers to {} entries (gojek, lalamove, jne)", filtered.size());
+            }
             log.debug("Successfully retrieved available couriers");
             return response;
         } catch (Exception e) {
+            if (stubEnabled()) {
+                log.warn("Falling back to stubbed couriers due to error: {}", e.getMessage());
+                return buildStubCouriers();
+            }
             log.error("Failed to get available couriers. Error: {}", e.getMessage(), e);
             throw new ShippingException("Failed to get available couriers: " + e.getMessage(), e);
         }
+    }
+
+    private CourierRateResponseDTO buildStubRates(CourierRateRequestDTO request) {
+        // Very simple pricing model for development:
+        // base per courier/service + (weight in kg rounded up * per-kg rate)
+        int totalWeightGrams = 0;
+        if (request != null && request.getItems() != null) {
+            for (var it : request.getItems()) {
+                int w = it.getWeight() != null ? it.getWeight() : 0;
+                int q = it.getQuantity() != null ? it.getQuantity() : 1;
+                totalWeightGrams += Math.max(0, w) * Math.max(1, q);
+            }
+        }
+        int kg = Math.max(1, (int)Math.ceil(totalWeightGrams / 1000.0));
+        String couriersStr = request != null ? request.getCouriers() : null;
+        List<String> selected = new ArrayList<>();
+        if (couriersStr != null && !couriersStr.isBlank()) {
+            Arrays.stream(couriersStr.split(","))
+                    .map(s -> s.trim().toLowerCase(Locale.ROOT))
+                    .filter(s -> !s.isBlank())
+                    .forEach(selected::add);
+        }
+        if (selected.isEmpty()) {
+            selected = Arrays.asList("gojek", "lalamove", "jne");
+        }
+        List<PricingDTO> pricing = new ArrayList<>();
+        boolean isInstant = request != null && request.getType() != null && request.getType().equalsIgnoreCase("instant");
+
+        for (String code : selected) {
+            switch (code) {
+                case "gojek" -> {
+                    // Instant and Same Day
+                    int baseInstant = 8000;
+                    int perKgInstant = 6000;
+                    int priceInstant = baseInstant + perKgInstant * kg;
+                    pricing.add(PricingDTO.builder()
+                            .courierName("Gojek")
+                            .courierCode("gojek")
+                            .courierServiceName(isInstant ? "Instant" : "Same Day")
+                            .courierServiceCode(isInstant ? "instant" : "same_day")
+                            .description(isInstant ? "On Demand Instant (bike)" : "On Demand within 8 hours (bike)")
+                            .serviceType("same_day")
+                            .shippingType("parcel")
+                            .price(priceInstant)
+                            .duration(isInstant ? "1 - 3 hours" : "6 - 8 hours")
+                            .build());
+                }
+                case "lalamove" -> {
+                    int baseInstant = 9000;
+                    int perKgInstant = 5000;
+                    int priceInstant = baseInstant + perKgInstant * kg;
+                    pricing.add(PricingDTO.builder()
+                            .courierName("Lalamove")
+                            .courierCode("lalamove")
+                            .courierServiceName("Instant")
+                            .courierServiceCode("instant")
+                            .description("Instant Delivery")
+                            .serviceType("same_day")
+                            .shippingType("parcel")
+                            .price(priceInstant)
+                            .duration("1 - 3 hours")
+                            .build());
+                }
+                case "jne" -> {
+                    int baseReg = 10000;
+                    int perKgReg = 7000;
+                    int priceReg = baseReg + perKgReg * kg;
+                    pricing.add(PricingDTO.builder()
+                            .courierName("JNE")
+                            .courierCode("jne")
+                            .courierServiceName("Reguler")
+                            .courierServiceCode("reg")
+                            .description("Regular Service")
+                            .serviceType("regular")
+                            .shippingType("parcel")
+                            .price(priceReg)
+                            .shipmentDurationRange("2 - 4")
+                            .shipmentDurationUnit("days")
+                            .build());
+                }
+                default -> {
+                    // ignore unsupported in stub
+                }
+            }
+        }
+        return CourierRateResponseDTO.builder()
+                .pricing(pricing)
+                .build();
     }
 
     @Override
@@ -71,10 +258,18 @@ public class ShippingServiceImpl implements ShippingService {
                 log.debug("CourierRateRequestDTO is null");
                 throw new ShippingException("CourierRateRequestDTO must not be null");
             }
+            if (stubEnabled()) {
+                log.debug("SHIPPING_STUB enabled: returning stubbed courier rates");
+                return buildStubRates(request);
+            }
             CourierRateResponseDTO response = biteshipShippingClient.getCourierRates(request);
             log.debug("Successfully retrieved courier rates");
             return response;
         } catch (Exception e) {
+            if (stubEnabled()) {
+                log.warn("Falling back to stubbed rates due to error: {}", e.getMessage());
+                return buildStubRates(request);
+            }
             log.error("Failed to get courier rates. Error: {}", e.getMessage(), e);
             throw new ShippingException("Failed to get courier rates: " + e.getMessage(), e);
         }

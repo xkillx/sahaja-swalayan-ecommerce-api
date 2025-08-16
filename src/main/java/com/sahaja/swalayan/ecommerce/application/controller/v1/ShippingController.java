@@ -1,5 +1,6 @@
 package com.sahaja.swalayan.ecommerce.application.controller.v1;
 
+import com.sahaja.swalayan.ecommerce.application.dto.ShippingWebhookPayload;
 import com.sahaja.swalayan.ecommerce.domain.service.ShippingService;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateRequestDTO;
@@ -13,14 +14,9 @@ import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.Cancel
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
@@ -29,6 +25,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class ShippingController {
 
     private final ShippingService shippingService;
+    private final com.sahaja.swalayan.ecommerce.application.service.ShippingWebhookService shippingWebhookService;
+
+    @org.springframework.beans.factory.annotation.Value("${shipping.webhook.token:}")
+    private String shippingWebhookToken;
+
+    // Temporary open flag to allow easy local testing; default true in application.yaml for dev
+    @org.springframework.beans.factory.annotation.Value("${shipping.webhook.open:false}")
+    private boolean shippingWebhookOpen;
 
     @Operation(summary = "Get available couriers for selection during checkout")
     @GetMapping("/couriers")
@@ -89,5 +93,44 @@ public class ShippingController {
         log.debug("Retrieving public tracking for waybillId: {}, courierCode: {}", waybillId, courierCode);
         TrackingResponseDTO response = shippingService.getPublicTracking(waybillId, courierCode);
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Shipping provider webhook callback (e.g., Biteship)")
+    @PostMapping(value = "/webhook", consumes = MediaType.ALL_VALUE)
+    public ResponseEntity<com.sahaja.swalayan.ecommerce.application.dto.ApiResponse<Void>> handleShippingWebhook(
+            @RequestHeader(value = "X-Callback-Token", required = false) String callbackToken,
+            @RequestBody(required = false) ShippingWebhookPayload payload
+    ) {
+        // If open flag is enabled, bypass token validation and accept empty body, returning OK
+        if (shippingWebhookOpen) {
+            try {
+                if (payload != null) {
+                    shippingWebhookService.handleWebhook(payload);
+                } else {
+                    log.debug("[shipping-webhook] Open mode: empty body accepted");
+                }
+            } catch (Exception e) {
+                log.warn("[shipping-webhook] Open mode: error processing payload: {}", e.getMessage());
+            }
+            return ResponseEntity.ok(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.success("OK"));
+        }
+
+        // Optional token validation via config property shipping.webhook.token with fallback to env/JVM
+        String expected = this.shippingWebhookToken;
+        if (expected == null || expected.isBlank()) {
+            expected = System.getenv("SHIPPING_WEBHOOK_TOKEN");
+        }
+        if (expected == null || expected.isBlank()) {
+            expected = System.getProperty("shipping.webhook.token");
+        }
+        if (expected != null && !expected.isBlank()) {
+            if (callbackToken == null || !expected.equals(callbackToken)) {
+                log.warn("Invalid or missing X-Callback-Token for shipping webhook");
+                return ResponseEntity.status(403)
+                        .body(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.error("Invalid X-Callback-Token"));
+            }
+        }
+        shippingWebhookService.handleWebhook(payload);
+        return ResponseEntity.ok(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.success("Shipping webhook processed successfully"));
     }
 }
