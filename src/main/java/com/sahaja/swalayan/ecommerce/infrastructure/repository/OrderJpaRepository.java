@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface OrderJpaRepository extends JpaRepository<Order, UUID> {
     List<Order> findByUserId(UUID userId);
+    java.util.Optional<Order> findByTrackingId(String trackingId);
+    java.util.Optional<Order> findByShippingOrderId(String shippingOrderId);
 }

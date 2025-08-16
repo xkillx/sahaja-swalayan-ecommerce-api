@@ -37,6 +37,16 @@ public class OrderRepositoryImpl implements OrderRepository {
     }
 
     @Override
+    public Optional<Order> findByTrackingId(String trackingId) {
+        return jpaRepository.findByTrackingId(trackingId);
+    }
+
+    @Override
+    public Optional<Order> findByShippingOrderId(String shippingOrderId) {
+        return jpaRepository.findByShippingOrderId(shippingOrderId);
+    }
+
+    @Override
     public void deleteById(UUID id) {
         jpaRepository.deleteById(id);
     }

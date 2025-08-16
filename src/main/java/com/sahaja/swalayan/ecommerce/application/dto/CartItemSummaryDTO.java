@@ -4,6 +4,12 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record CartItemSummaryDTO(
-        UUID id, UUID productId, String name,
-        BigDecimal price, Integer quantity, BigDecimal subtotal, String imageUrl
+        UUID id,
+        UUID productId,
+        String name,
+        BigDecimal price,
+        Integer quantity,
+        BigDecimal subtotal,
+        String imageUrl,
+        Integer weight // product weight in grams
 ) {}

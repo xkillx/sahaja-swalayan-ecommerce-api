@@ -10,7 +10,8 @@ public interface OrderRepository {
     Optional<Order> findById(UUID id);
     List<Order> findAll();
     List<Order> findByUserId(UUID userId);
+    Optional<Order> findByTrackingId(String trackingId);
+    Optional<Order> findByShippingOrderId(String shippingOrderId);
     void deleteById(UUID id);
     void delete(Order order);
-    // Add custom query methods if needed
 }

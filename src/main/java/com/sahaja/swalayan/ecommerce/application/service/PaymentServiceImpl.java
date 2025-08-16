@@ -208,6 +208,12 @@ public class PaymentServiceImpl implements PaymentService {
                         .orElseThrow(() -> new OrderNotFoundException("Order not found: " + payment.getOrderId()));
                 log.debug("[handleXenditWebhook] Preparing shipping request for OrderId: {}", order.getId());
 
+                // If shipping already created, do nothing (idempotent)
+                if (order.getShippingOrderId() != null && !order.getShippingOrderId().isBlank()) {
+                    log.debug("[handleXenditWebhook] Shipping already created for OrderId: {}. Skipping.", order.getId());
+                    return;
+                }
+
                 // Ensure shipping selection exists on order
                 if (order.getShippingCourierCode() == null || order.getShippingCourierCode().isBlank() ||
                     order.getShippingCourierService() == null || order.getShippingCourierService().isBlank()) {
@@ -332,7 +338,11 @@ public class PaymentServiceImpl implements PaymentService {
 
                     order.setShippingOrderId(shippingOrderId);
                     order.setTrackingId(trackingId);
-                    order.setShippingStatus(shippingStatus);
+                    order.setShippingStatus(shippingStatus != null ? shippingStatus : "waiting_pickup");
+                    // Move order to CONFIRMED (paid, waiting pickup)
+                    if (order.getStatus() != Status.CONFIRMED) {
+                        order.setStatus(Status.CONFIRMED);
+                    }
                     orderRepository.save(order);
                     log.debug("[handleXenditWebhook] Shipping order created for OrderId: {}. ShippingOrderId: {}, TrackingId: {}", order.getId(), shippingOrderId, trackingId);
                 } else {

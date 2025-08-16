@@ -22,6 +22,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -63,11 +64,12 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
         http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         http
             // Disable CSRF for API endpoints (stateless authentication)
             .csrf(AbstractHttpConfigurer::disable)
-            
+
             // Configure CORS (allow cross-origin requests)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             
@@ -112,12 +114,13 @@ public class SecurityConfig {
                 .requestMatchers("/uploads/products/**").permitAll()
 
                 
-                // Public endpoints - Payment webhooks (secured by callback token)
+                // Public webhooks (validated by their own tokens inside controllers)
                 .requestMatchers("/v1/payments/webhook").permitAll()
+                .requestMatchers("/v1/shipping/webhook").permitAll()
                 
-                // Public endpoints - Health checks and monitoring
+                // Public endpoints - Health checks and documentation
                 .requestMatchers("/v1/auth/register", "/v1/auth/confirm", "/v1/jwt/extract", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/actuator/info", "/favicon.ico", "/error")
-                    .permitAll()             // Public endpoints - API Documentation
+                    .permitAll()
                 .requestMatchers("/swagger-ui.html").permitAll()
                 .requestMatchers("/swagger-ui/**").permitAll()
                 .requestMatchers("/v3/api-docs/**").permitAll()

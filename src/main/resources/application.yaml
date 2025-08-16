@@ -64,8 +64,8 @@ mailtrap:
 xendit:
   api-key: ${XENDIT_API_KEY:xnd_development_q8X7XhaSMHiXC5yxNKi1r7IZlG6lO4ki03Uk2Tf5KUOWB5pile5q6xlGX617Bd}
   base-url: ${XENDIT_BASE_URL:https://api.xendit.co}
-  success-redirect-url: ${XENDIT_SUCCESS_REDIRECT_URL:https://yourdomain.com/payment/success}
-  callback-token: ${XENDIT_CALLBACK_TOKEN:cb_token_livekey_9xsWcG5XEwLj2DcZxDq7P0vJxngE1bW28m6V1CulTzr0JVqP7V}
+  success-redirect-url: ${XENDIT_SUCCESS_REDIRECT_URL:http://localhost:3000/orders/success}
+  callback-token: ${XENDIT_CALLBACK_TOKEN:KPKnvU0mpkfmOr3CUByM9slnusn2pydxV2ndUCDeXSpcuzwh}
 
 # Biteship Shipping API Configuration
 biteship:
@@ -83,6 +83,11 @@ logging:
 
 # Shipping Origin (Warehouse) Configuration
 shipping:
+  webhook:
+    token: KPKnvU0mpkfmOr3CUByM9slnusn2pydxV2ndUCDeXSpcuzwh
+    url: https://d7e206864e30.ngrok-free.app/api/v1/shipping/webhook
+  stub:
+    enabled: true  # set to false to use real Biteship integration
   origin:
     contact-name: ${SHIPPING_ORIGIN_CONTACT_NAME:Sahaja Warehouse}
     contact-phone: ${SHIPPING_ORIGIN_CONTACT_PHONE:+621234567890}
