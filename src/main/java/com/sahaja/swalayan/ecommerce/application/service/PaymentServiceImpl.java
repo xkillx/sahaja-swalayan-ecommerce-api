@@ -155,29 +155,48 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public void handleXenditWebhook(XenditWebhookPayload payload) {
         log.debug("[handleXenditWebhook] Received webhook payload: {}", payload);
+        UUID externalId = parseAndValidatePayload(payload);
+        String status = payload.getStatus();
+        log.debug("[handleXenditWebhook] Processing status: {} for externalId: {}", status, externalId);
+
+        Payment payment = getPaymentByExternalId(externalId);
+        applyStatusUpdate(payment, status);
+        paymentRepository.save(payment);
+        log.debug("[handleXenditWebhook] Payment updated and saved. PaymentId: {}, Status: {}", payment.getId(), payment.getPaymentStatus());
+
+        if (payment.getPaymentStatus() == PaymentStatus.PAID) {
+            safelyCreateShippingForPaidPayment(externalId, payment);
+        }
+    }
+
+    // -------------------- Helper Methods (Webhook Handling) --------------------
+    private UUID parseAndValidatePayload(XenditWebhookPayload payload) {
         if (payload == null || payload.getExternalId() == null || payload.getStatus() == null) {
             log.debug("[handleXenditWebhook] Invalid webhook payload: {}", payload);
             throw new InvalidXenditWebhookException("Invalid webhook payload");
         }
-        UUID externalId;
         try {
-            externalId = UUID.fromString(payload.getExternalId());
+            UUID externalId = UUID.fromString(payload.getExternalId());
             log.debug("[handleXenditWebhook] Parsed externalId: {}", externalId);
+            return externalId;
         } catch (Exception e) {
             log.debug("[handleXenditWebhook] Invalid external_id format: {}", payload.getExternalId());
             throw new InvalidXenditWebhookException("Invalid external_id format", e);
         }
-        String status = payload.getStatus();
-        log.debug("[handleXenditWebhook] Processing status: {} for externalId: {}", status, externalId);
+    }
 
+    private Payment getPaymentByExternalId(UUID externalId) {
         Payment payment = paymentRepository.findByExternalId(externalId)
                 .orElseThrow(() -> {
                     log.debug("[handleXenditWebhook] Payment not found for externalId: {}", externalId);
                     return new InvalidXenditWebhookException("Payment not found for externalId: " + externalId);
                 });
         log.debug("[handleXenditWebhook] Found payment: {}", payment);
+        return payment;
+    }
+
+    private void applyStatusUpdate(Payment payment, String status) {
         if ("PAID".equalsIgnoreCase(status)) {
-            // Validate that paid amount matches order total before marking as PAID
             var orderForValidation = orderRepository.findById(payment.getOrderId())
                     .orElseThrow(() -> new OrderNotFoundException("Order not found: " + payment.getOrderId()));
             var expectedTotal = orderForValidation.getTotalAmount();
@@ -186,7 +205,6 @@ public class PaymentServiceImpl implements PaymentService {
                         orderForValidation.getId(), payment.getAmount(), expectedTotal);
                 throw new InvalidPaymentAmountException("Paid amount does not match order total");
             }
-
             payment.setPaymentStatus(PaymentStatus.PAID);
             payment.setPaidAt(LocalDateTime.now());
             log.debug("[handleXenditWebhook] Payment marked as PAID. PaymentId: {}", payment.getId());
@@ -197,151 +215,156 @@ public class PaymentServiceImpl implements PaymentService {
             log.debug("[handleXenditWebhook] Unknown payment status received: {}", status);
             throw new InvalidXenditWebhookException("Unknown payment status: " + status);
         }
-        paymentRepository.save(payment);
-        log.debug("[handleXenditWebhook] Payment updated and saved. PaymentId: {}, Status: {}", payment.getId(), payment.getPaymentStatus());
+    }
 
-        // If payment is PAID, attempt to create a shipping order
-        if (payment.getPaymentStatus() == PaymentStatus.PAID) {
-            try {
-                // Fetch order and validate
-                Order order = orderRepository.findById(payment.getOrderId())
-                        .orElseThrow(() -> new OrderNotFoundException("Order not found: " + payment.getOrderId()));
-                log.debug("[handleXenditWebhook] Preparing shipping request for OrderId: {}", order.getId());
-
-                // Ensure shipping selection exists on order
-                if (order.getShippingCourierCode() == null || order.getShippingCourierCode().isBlank() ||
-                    order.getShippingCourierService() == null || order.getShippingCourierService().isBlank()) {
-                    log.debug("[handleXenditWebhook] Shipping courier not selected on order: {}. Skipping shipping creation.", order.getId());
-                    return; // do not throw, payment already processed
-                }
-
-                // Build items
-                List<OrderItem> orderItems = orderItemRepository.findByOrderId(order.getId());
-                if (orderItems == null || orderItems.isEmpty()) {
-                    log.debug("[handleXenditWebhook] No order items found for order: {}. Skipping shipping creation.", order.getId());
-                    return;
-                }
-                var itemDTOs = new ArrayList<OrderItemDTO>();
-                for (OrderItem oi : orderItems) {
-                    Product product = productRepository.findById(oi.getProductId()).orElse(null);
-                    if (product == null) {
-                        log.debug("[handleXenditWebhook] Product not found for productId: {}. Skipping this item.", oi.getProductId());
-                        continue;
-                    }
-                    Integer value = oi.getPricePerUnit() != null ? oi.getPricePerUnit().setScale(0, RoundingMode.HALF_UP).intValue() : null;
-                    OrderItemDTO item = OrderItemDTO.builder()
-                            .name(product.getName())
-                            .description(product.getDescription())
-                            // Category is optional in Biteship; omit to let it default to 'others'
-                            .category(null)
-                            .sku(product.getSku())
-                            .value(value)
-                            .quantity(oi.getQuantity())
-                            .weight(product.getWeight())
-                            .height(product.getHeight())
-                            .length(product.getLength())
-                            .width(product.getWidth())
-                            .build();
-                    itemDTOs.add(item);
-                }
-
-                if (itemDTOs.isEmpty()) {
-                    log.debug("[handleXenditWebhook] No valid items to ship for order: {}. Skipping shipping creation.", order.getId());
-                    return;
-                }
-
-                // Destination (customer address)
-                var addr = order.getShippingAddress();
-                if (addr == null) {
-                    log.debug("[handleXenditWebhook] Shipping address is null for order: {}. Skipping shipping creation.", order.getId());
-                    return;
-                }
-                CoordinateDTO destinationCoordinate = null;
-                if (addr.getLatitude() != null && addr.getLongitude() != null) {
-                    destinationCoordinate = CoordinateDTO.builder()
-                            .latitude(addr.getLatitude())
-                            .longitude(addr.getLongitude())
-                            .build();
-                }
-
-                // Origin (warehouse) from configuration
-                CoordinateDTO originCoordinate = null;
-                if (shippingOriginProperties.getLatitude() != null && shippingOriginProperties.getLongitude() != null) {
-                    originCoordinate = CoordinateDTO.builder()
-                            .latitude(shippingOriginProperties.getLatitude())
-                            .longitude(shippingOriginProperties.getLongitude())
-                            .build();
-                }
-
-                // Determine destination email from order user
-                var destinationEmail = userRepository.findById(order.getUserId())
-                        .map(u -> u.getEmail())
-                        .orElse(null);
-
-                CreateOrderRequestDTO.CreateOrderRequestDTOBuilder builder = CreateOrderRequestDTO.builder()
-                        .referenceId(order.getId().toString())
-                        // Shipper (optional)
-                        .shipperContactName(shippingOriginProperties.getContactName())
-                        .shipperContactPhone(shippingOriginProperties.getContactPhone())
-                        .shipperContactEmail(shippingOriginProperties.getContactEmail())
-                        .shipperOrganization(shippingOriginProperties.getOrganization())
-                        // Origin
-                        .originContactName(shippingOriginProperties.getContactName())
-                        .originContactPhone(shippingOriginProperties.getContactPhone())
-                        .originContactEmail(shippingOriginProperties.getContactEmail())
-                        .originAddress(shippingOriginProperties.getAddress())
-                        .originNote(shippingOriginProperties.getNote())
-                        .originPostalCode(shippingOriginProperties.getPostalCode())
-                        .originAreaId(shippingOriginProperties.getAreaId())
-                        .originLocationId(shippingOriginProperties.getLocationId())
-                        .originCollectionMethod(shippingOriginProperties.getCollectionMethod())
-                        .originCoordinate(originCoordinate)
-                        // Destination
-                        .destinationContactName(addr.getContactName())
-                        .destinationContactPhone(addr.getContactPhone())
-                        .destinationContactEmail(destinationEmail)
-                        .destinationAddress(addr.getAddressLine())
-                        .destinationPostalCode(addr.getPostalCode())
-                        .destinationAreaId(addr.getAreaId())
-                        .destinationLocationId(null)
-                        .destinationProofOfDelivery(null)
-                        .destinationProofOfDeliveryNote(null)
-                        .destinationCashOnDelivery(null)
-                        .destinationCashOnDeliveryType(null)
-                        .destinationCoordinate(destinationCoordinate)
-                        // Courier
-                        .courierCompany(order.getShippingCourierCode())
-                        .courierType(order.getShippingCourierService() != null ? order.getShippingCourierService().toLowerCase() : null)
-                        .courierInsurance(null)
-                        // Delivery
-                        .deliveryType("now")
-                        .orderNote(null);
-
-                // Add items via singular builder method
-                for (OrderItemDTO it : itemDTOs) {
-                    builder.item(it);
-                }
-
-                CreateOrderRequestDTO requestDTO = builder.build();
-                log.debug("[handleXenditWebhook] Calling shippingService.createOrder for OrderId: {} with request: {}", order.getId(), requestDTO);
-                CreateOrderResponseDTO response = shippingService.createOrder(requestDTO);
-                if (response != null && response.isSuccess()) {
-                    String shippingOrderId = response.getId();
-                    String trackingId = response.getCourier() != null ? response.getCourier().getTrackingId() : null;
-                    String shippingStatus = response.getStatus();
-
-                    order.setShippingOrderId(shippingOrderId);
-                    order.setTrackingId(trackingId);
-                    order.setShippingStatus(shippingStatus);
-                    orderRepository.save(order);
-                    log.debug("[handleXenditWebhook] Shipping order created for OrderId: {}. ShippingOrderId: {}, TrackingId: {}", order.getId(), shippingOrderId, trackingId);
-                } else {
-                    log.error("[handleXenditWebhook] Failed to create shipping order for OrderId: {}. Response: {}", order.getId(), response);
-                }
-            } catch (Exception ex) {
-                // Do not rethrow; payment update must not be rolled back due to shipping failure
-                log.error("[handleXenditWebhook] Error while creating shipping for Payment externalId: {}. Error: {}", externalId, ex.getMessage(), ex);
-            }
+    private void safelyCreateShippingForPaidPayment(UUID externalId, Payment payment) {
+        try {
+            createShippingOrder(payment);
+        } catch (Exception ex) {
+            // Do not rethrow; payment update must not be rolled back due to shipping failure
+            log.error("[handleXenditWebhook] Error while creating shipping for Payment externalId: {}. Error: {}", externalId, ex.getMessage(), ex);
         }
+    }
+
+    private void createShippingOrder(Payment payment) {
+        // Fetch order and validate
+        Order order = orderRepository.findById(payment.getOrderId())
+                .orElseThrow(() -> new OrderNotFoundException("Order not found: " + payment.getOrderId()));
+        log.debug("[handleXenditWebhook] Preparing shipping request for OrderId: {}", order.getId());
+
+        if (isShippingSelectionMissing(order)) {
+            log.debug("[handleXenditWebhook] Shipping courier not selected on order: {}. Skipping shipping creation.", order.getId());
+            return; // do not throw, payment already processed
+        }
+
+        // Build items
+        List<OrderItem> orderItems = orderItemRepository.findByOrderId(order.getId());
+        if (orderItems == null || orderItems.isEmpty()) {
+            log.debug("[handleXenditWebhook] No order items found for order: {}. Skipping shipping creation.", order.getId());
+            return;
+        }
+        List<OrderItemDTO> itemDTOs = buildOrderItemDTOs(orderItems);
+        if (itemDTOs.isEmpty()) {
+            log.debug("[handleXenditWebhook] No valid items to ship for order: {}. Skipping shipping creation.", order.getId());
+            return;
+        }
+
+        // Destination (customer address)
+        var addr = order.getShippingAddress();
+        if (addr == null) {
+            log.debug("[handleXenditWebhook] Shipping address is null for order: {}. Skipping shipping creation.", order.getId());
+            return;
+        }
+
+        CoordinateDTO destinationCoordinate = buildCoordinate(addr.getLatitude(), addr.getLongitude());
+        CoordinateDTO originCoordinate = buildCoordinate(shippingOriginProperties.getLatitude(), shippingOriginProperties.getLongitude());
+
+        // Determine destination email from order user
+        var destinationEmail = userRepository.findById(order.getUserId())
+                .map(u -> u.getEmail())
+                .orElse(null);
+
+        CreateOrderRequestDTO.CreateOrderRequestDTOBuilder builder = CreateOrderRequestDTO.builder()
+                .referenceId(order.getId().toString())
+                // Shipper (optional)
+                .shipperContactName(shippingOriginProperties.getContactName())
+                .shipperContactPhone(shippingOriginProperties.getContactPhone())
+                .shipperContactEmail(shippingOriginProperties.getContactEmail())
+                .shipperOrganization(shippingOriginProperties.getOrganization())
+                // Origin
+                .originContactName(shippingOriginProperties.getContactName())
+                .originContactPhone(shippingOriginProperties.getContactPhone())
+                .originContactEmail(shippingOriginProperties.getContactEmail())
+                .originAddress(shippingOriginProperties.getAddress())
+                .originNote(shippingOriginProperties.getNote())
+                .originPostalCode(shippingOriginProperties.getPostalCode())
+                .originAreaId(shippingOriginProperties.getAreaId())
+                .originLocationId(shippingOriginProperties.getLocationId())
+                .originCollectionMethod(shippingOriginProperties.getCollectionMethod())
+                .originCoordinate(originCoordinate)
+                // Destination
+                .destinationContactName(addr.getContactName())
+                .destinationContactPhone(addr.getContactPhone())
+                .destinationContactEmail(destinationEmail)
+                .destinationAddress(addr.getAddressLine())
+                .destinationPostalCode(addr.getPostalCode())
+                .destinationAreaId(addr.getAreaId())
+                .destinationLocationId(null)
+                .destinationProofOfDelivery(null)
+                .destinationProofOfDeliveryNote(null)
+                .destinationCashOnDelivery(null)
+                .destinationCashOnDeliveryType(null)
+                .destinationCoordinate(destinationCoordinate)
+                // Courier
+                .courierCompany(order.getShippingCourierCode())
+                .courierType(order.getShippingCourierService() != null ? order.getShippingCourierService().toLowerCase() : null)
+                .courierInsurance(null)
+                // Delivery
+                .deliveryType("now")
+                .orderNote(null);
+
+        // Add items via singular builder method
+        for (OrderItemDTO it : itemDTOs) {
+            builder.item(it);
+        }
+
+        CreateOrderRequestDTO requestDTO = builder.build();
+        log.debug("[handleXenditWebhook] Calling shippingService.createOrder for OrderId: {} with request: {}", order.getId(), requestDTO);
+        CreateOrderResponseDTO response = shippingService.createOrder(requestDTO);
+        if (response != null && response.isSuccess()) {
+            String shippingOrderId = response.getId();
+            String trackingId = response.getCourier() != null ? response.getCourier().getTrackingId() : null;
+            String shippingStatus = response.getStatus();
+
+            order.setShippingOrderId(shippingOrderId);
+            order.setTrackingId(trackingId);
+            order.setShippingStatus(shippingStatus);
+            orderRepository.save(order);
+            log.debug("[handleXenditWebhook] Shipping order created for OrderId: {}. ShippingOrderId: {}, TrackingId: {}", order.getId(), shippingOrderId, trackingId);
+        } else {
+            log.error("[handleXenditWebhook] Failed to create shipping order for OrderId: {}. Response: {}", order.getId(), response);
+        }
+    }
+
+    private boolean isShippingSelectionMissing(Order order) {
+        return order.getShippingCourierCode() == null || order.getShippingCourierCode().isBlank()
+                || order.getShippingCourierService() == null || order.getShippingCourierService().isBlank();
+    }
+
+    private List<OrderItemDTO> buildOrderItemDTOs(List<OrderItem> orderItems) {
+        List<OrderItemDTO> itemDTOs = new ArrayList<>();
+        for (OrderItem oi : orderItems) {
+            Product product = productRepository.findById(oi.getProductId()).orElse(null);
+            if (product == null) {
+                log.debug("[handleXenditWebhook] Product not found for productId: {}. Skipping this item.", oi.getProductId());
+                continue;
+            }
+            Integer value = oi.getPricePerUnit() != null ? oi.getPricePerUnit().setScale(0, RoundingMode.HALF_UP).intValue() : null;
+            OrderItemDTO item = OrderItemDTO.builder()
+                    .name(product.getName())
+                    .description(product.getDescription())
+                    // Category is optional in Biteship; omit to let it default to 'others'
+                    .category(null)
+                    .sku(product.getSku())
+                    .value(value)
+                    .quantity(oi.getQuantity())
+                    .weight(product.getWeight())
+                    .height(product.getHeight())
+                    .length(product.getLength())
+                    .width(product.getWidth())
+                    .build();
+            itemDTOs.add(item);
+        }
+        return itemDTOs;
+    }
+
+    private CoordinateDTO buildCoordinate(Double latitude, Double longitude) {
+        if (latitude == null || longitude == null) {
+            return null;
+        }
+        return CoordinateDTO.builder()
+                .latitude(latitude)
+                .longitude(longitude)
+                .build();
     }
 }

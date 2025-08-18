@@ -511,7 +511,7 @@ class PaymentControllerIntegrationTest {
         log.debug("Webhook test - Using token: {}", validCallbackToken);
 
         mockMvc.perform(post("/v1/payments/webhook")
-                .header("X-Callback-Token", validCallbackToken)
+                .header("X-CALLBACK-TOKEN", validCallbackToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload)))
                 .andExpect(status().isOk())
@@ -583,7 +583,7 @@ class PaymentControllerIntegrationTest {
                 .content(objectMapper.writeValueAsString(payload)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message", containsString("Missing X-Callback-Token")));
+                .andExpect(jsonPath("$.message", containsString("Missing X-CALLBACK-TOKEN")));
     }
 
     @Test
@@ -635,12 +635,12 @@ class PaymentControllerIntegrationTest {
                 .build();
 
         mockMvc.perform(post("/v1/payments/webhook")
-                .header("X-Callback-Token", "wrong-token")
+                .header("X-CALLBACK-TOKEN", "wrong-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message", containsString("Invalid X-Callback-Token")));
+                .andExpect(jsonPath("$.message", containsString("Invalid X-CALLBACK-TOKEN")));
     }
 
     @Test
@@ -653,7 +653,7 @@ class PaymentControllerIntegrationTest {
 
         // Execute with valid token but invalid payload
         mockMvc.perform(post("/v1/payments/webhook")
-                .header("X-Callback-Token", validCallbackToken)
+                .header("X-CALLBACK-TOKEN", validCallbackToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(invalidPayload)))
                 .andExpect(status().isBadRequest())
@@ -761,7 +761,7 @@ class PaymentControllerIntegrationTest {
                 .build();
 
         mockMvc.perform(post("/v1/payments/webhook")
-                .header("X-Callback-Token", validCallbackToken)
+                .header("X-CALLBACK-TOKEN", validCallbackToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(payload)))
                 .andExpect(status().isBadRequest());

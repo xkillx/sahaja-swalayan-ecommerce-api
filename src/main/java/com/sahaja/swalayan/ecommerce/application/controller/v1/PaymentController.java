@@ -63,7 +63,7 @@ public class PaymentController {
     @PostMapping("/webhook")
     @ApiPaymentWebhookOperation
     public ResponseEntity<ApiResponse<Void>> handleWebhook(
-            @RequestHeader(value = "X-Callback-Token", required = false) String callbackToken,
+            @RequestHeader(value = "X-CALLBACK-TOKEN", required = false) String callbackToken,
             @RequestBody XenditWebhookPayload payload) {
         
         // Validate the callback token first
@@ -94,13 +94,13 @@ public class PaymentController {
         String expectedToken = xenditProperties.getCallbackToken();
         
         if (!StringUtils.hasText(callbackToken)) {
-            log.debug("Missing X-Callback-Token header in webhook request");
-            throw new InvalidXenditWebhookException("Missing X-Callback-Token header");
+            log.debug("Missing X-CALLBACK-TOKEN header in webhook request");
+            throw new InvalidXenditWebhookException("Missing X-CALLBACK-TOKEN header");
         }
         
         if (!Objects.equals(callbackToken, expectedToken)) {
-            log.debug("Invalid X-Callback-Token provided in webhook request");
-            throw new InvalidXenditWebhookException("Invalid X-Callback-Token");
+            log.debug("Invalid X-CALLBACK-TOKEN in webhook request");
+            throw new InvalidXenditWebhookException("Invalid X-CALLBACK-TOKEN");
         }
         
         log.debug("Xendit callback token validation successful");

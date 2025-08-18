@@ -65,7 +65,7 @@ xendit:
   api-key: ${XENDIT_API_KEY:xnd_development_q8X7XhaSMHiXC5yxNKi1r7IZlG6lO4ki03Uk2Tf5KUOWB5pile5q6xlGX617Bd}
   base-url: ${XENDIT_BASE_URL:https://api.xendit.co}
   success-redirect-url: ${XENDIT_SUCCESS_REDIRECT_URL:https://yourdomain.com/payment/success}
-  callback-token: ${XENDIT_CALLBACK_TOKEN:cb_token_livekey_9xsWcG5XEwLj2DcZxDq7P0vJxngE1bW28m6V1CulTzr0JVqP7V}
+  callback-token: ${XENDIT_CALLBACK_TOKEN:KPKnvU0mpkfmOr3CUByM9slnusn2pydxV2ndUCDeXSpcuzwh}
 
 # Biteship Shipping API Configuration
 biteship:
@@ -79,7 +79,7 @@ app:
 
 logging:
   level:
-    com.sahaja.swalayan.ecommerce: DEBUG
+    com.sahaja.swalayan.ecommerce: ${LOGGING_LEVEL_APP:DEBUG}
 
 # Shipping Origin (Warehouse) Configuration
 shipping:
