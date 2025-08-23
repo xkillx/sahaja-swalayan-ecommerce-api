@@ -81,11 +81,16 @@ logging:
   level:
     com.sahaja.swalayan.ecommerce: DEBUG
 
+# Firebase Authentication
+firebase:
+  project-id: ${FIREBASE_PROJECT_ID:sahaja-dev}
+
 # Shipping Origin (Warehouse) Configuration
 shipping:
   webhook:
-    token: KPKnvU0mpkfmOr3CUByM9slnusn2pydxV2ndUCDeXSpcuzwh
-    url: https://d7e206864e30.ngrok-free.app/api/v1/shipping/webhook
+    signature:
+      key: ${SHIPPING_WEBHOOK_SIGNATURE_KEY:X-Biteship-Signature}
+      secret: ${SHIPPING_WEBHOOK_SIGNATURE_SECRET:change-me-in-env}
   stub:
     enabled: true  # set to false to use real Biteship integration
   origin:

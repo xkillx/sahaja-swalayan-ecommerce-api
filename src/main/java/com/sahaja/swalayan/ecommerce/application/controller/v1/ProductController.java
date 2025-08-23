@@ -82,7 +82,30 @@ public class ProductController {
     @PutMapping(value = "/{id}")
     @ApiUpdateProductOperation
     public ResponseEntity<ProductDTO> updateProduct(@PathVariable UUID id, @Valid @RequestBody ProductDTO productDTO) {
+        // Map incoming DTO to entity
         Product product = productMapper.toEntity(productDTO);
+
+        // Resolve category to avoid null category_id constraint violations
+        UUID categoryId = productDTO.getCategoryId();
+        Category category;
+        if (categoryId == null) {
+            // Keep existing category if present; otherwise default to 'Uncategorised'
+            Product existing = productService.findById(id);
+            if (existing.getCategory() != null) {
+                category = existing.getCategory();
+            } else {
+                category = categoryService.findById(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+            }
+        } else {
+            try {
+                category = categoryService.findById(categoryId);
+            } catch (CategoryNotFoundException ex) {
+                log.error("Product update failed: categoryId {} not found", categoryId);
+                throw new CategoryNotFoundException("Invalid categoryId supplied: " + categoryId);
+            }
+        }
+        product.setCategory(category);
+
         Product updatedProduct = productService.update(id, product);
         ProductDTO updatedProductDTO = productMapper.toDto(updatedProduct);
         return ResponseEntity.ok(updatedProductDTO);

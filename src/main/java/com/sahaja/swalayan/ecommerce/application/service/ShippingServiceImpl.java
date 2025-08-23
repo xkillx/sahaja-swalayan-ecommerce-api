@@ -2,19 +2,7 @@ package com.sahaja.swalayan.ecommerce.application.service;
 
 import com.sahaja.swalayan.ecommerce.domain.service.ShippingService;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.BiteshipShippingClient;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.AreaResponseDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateRequestDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRateResponseDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierResponseDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderRequestDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderResponseDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.RetrieveOrderResponseDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancellationReasonResponseDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancelOrderRequestDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CancelOrderResponseDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.TrackingResponseDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.PricingDTO;
-import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierRetrieveDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.*;
 import com.sahaja.swalayan.ecommerce.common.ShippingException;
 import com.sahaja.swalayan.ecommerce.infrastructure.config.CacheConfig;
 import lombok.extern.slf4j.Slf4j;
@@ -128,14 +116,10 @@ public class ShippingServiceImpl implements ShippingService {
     }
 
     @Override
-    @Cacheable(value = CacheConfig.CACHE_COURIERS, key = "'all'", unless = "#result == null")
+    //@Cacheable(value = CacheConfig.CACHE_COURIERS, key = "'all'", unless = "#result == null")
     public CourierResponseDTO getAvailableCouriers() {
         log.debug("Starting getAvailableCouriers");
         try {
-            if (stubEnabled()) {
-                log.debug("SHIPPING_STUB enabled: returning stubbed couriers");
-                return buildStubCouriers();
-            }
             CourierResponseDTO response = biteshipShippingClient.getAvailableCouriers();
             if (response != null && response.getCouriers() != null) {
                 // Filter to only allow gojek, lalamove, and jne as requested
@@ -162,94 +146,6 @@ public class ShippingServiceImpl implements ShippingService {
         }
     }
 
-    private CourierRateResponseDTO buildStubRates(CourierRateRequestDTO request) {
-        // Very simple pricing model for development:
-        // base per courier/service + (weight in kg rounded up * per-kg rate)
-        int totalWeightGrams = 0;
-        if (request != null && request.getItems() != null) {
-            for (var it : request.getItems()) {
-                int w = it.getWeight() != null ? it.getWeight() : 0;
-                int q = it.getQuantity() != null ? it.getQuantity() : 1;
-                totalWeightGrams += Math.max(0, w) * Math.max(1, q);
-            }
-        }
-        int kg = Math.max(1, (int)Math.ceil(totalWeightGrams / 1000.0));
-        String couriersStr = request != null ? request.getCouriers() : null;
-        List<String> selected = new ArrayList<>();
-        if (couriersStr != null && !couriersStr.isBlank()) {
-            Arrays.stream(couriersStr.split(","))
-                    .map(s -> s.trim().toLowerCase(Locale.ROOT))
-                    .filter(s -> !s.isBlank())
-                    .forEach(selected::add);
-        }
-        if (selected.isEmpty()) {
-            selected = Arrays.asList("gojek", "lalamove", "jne");
-        }
-        List<PricingDTO> pricing = new ArrayList<>();
-        boolean isInstant = request != null && request.getType() != null && request.getType().equalsIgnoreCase("instant");
-
-        for (String code : selected) {
-            switch (code) {
-                case "gojek" -> {
-                    // Instant and Same Day
-                    int baseInstant = 8000;
-                    int perKgInstant = 6000;
-                    int priceInstant = baseInstant + perKgInstant * kg;
-                    pricing.add(PricingDTO.builder()
-                            .courierName("Gojek")
-                            .courierCode("gojek")
-                            .courierServiceName(isInstant ? "Instant" : "Same Day")
-                            .courierServiceCode(isInstant ? "instant" : "same_day")
-                            .description(isInstant ? "On Demand Instant (bike)" : "On Demand within 8 hours (bike)")
-                            .serviceType("same_day")
-                            .shippingType("parcel")
-                            .price(priceInstant)
-                            .duration(isInstant ? "1 - 3 hours" : "6 - 8 hours")
-                            .build());
-                }
-                case "lalamove" -> {
-                    int baseInstant = 9000;
-                    int perKgInstant = 5000;
-                    int priceInstant = baseInstant + perKgInstant * kg;
-                    pricing.add(PricingDTO.builder()
-                            .courierName("Lalamove")
-                            .courierCode("lalamove")
-                            .courierServiceName("Instant")
-                            .courierServiceCode("instant")
-                            .description("Instant Delivery")
-                            .serviceType("same_day")
-                            .shippingType("parcel")
-                            .price(priceInstant)
-                            .duration("1 - 3 hours")
-                            .build());
-                }
-                case "jne" -> {
-                    int baseReg = 10000;
-                    int perKgReg = 7000;
-                    int priceReg = baseReg + perKgReg * kg;
-                    pricing.add(PricingDTO.builder()
-                            .courierName("JNE")
-                            .courierCode("jne")
-                            .courierServiceName("Reguler")
-                            .courierServiceCode("reg")
-                            .description("Regular Service")
-                            .serviceType("regular")
-                            .shippingType("parcel")
-                            .price(priceReg)
-                            .shipmentDurationRange("2 - 4")
-                            .shipmentDurationUnit("days")
-                            .build());
-                }
-                default -> {
-                    // ignore unsupported in stub
-                }
-            }
-        }
-        return CourierRateResponseDTO.builder()
-                .pricing(pricing)
-                .build();
-    }
-
     @Override
     public CourierRateResponseDTO getCourierRates(CourierRateRequestDTO request) {
         log.debug("Starting getCourierRates with request: {}", request);
@@ -258,18 +154,10 @@ public class ShippingServiceImpl implements ShippingService {
                 log.debug("CourierRateRequestDTO is null");
                 throw new ShippingException("CourierRateRequestDTO must not be null");
             }
-            if (stubEnabled()) {
-                log.debug("SHIPPING_STUB enabled: returning stubbed courier rates");
-                return buildStubRates(request);
-            }
             CourierRateResponseDTO response = biteshipShippingClient.getCourierRates(request);
             log.debug("Successfully retrieved courier rates");
             return response;
         } catch (Exception e) {
-            if (stubEnabled()) {
-                log.warn("Falling back to stubbed rates due to error: {}", e.getMessage());
-                return buildStubRates(request);
-            }
             log.error("Failed to get courier rates. Error: {}", e.getMessage(), e);
             throw new ShippingException("Failed to get courier rates: " + e.getMessage(), e);
         }
@@ -280,17 +168,69 @@ public class ShippingServiceImpl implements ShippingService {
         log.debug("Starting createOrder with requestDTO: {}", requestDTO);
         try {
             if (requestDTO == null) {
-                log.debug("CreateOrderRequestDTO is null");
                 throw new ShippingException("CreateOrderRequestDTO must not be null");
             }
+
+            boolean testMode = Boolean.parseBoolean(System.getenv().getOrDefault("BITESHIP_FORCE_TEST", "false"));
+            if (testMode){
+                // koordinat Jakarta (contoh)
+                requestDTO.setOriginCoordinate(CoordinateDTO.builder()
+                        .latitude(-6.200000).longitude(106.816666).build());
+                requestDTO.setDestinationCoordinate(CoordinateDTO.builder()
+                        .latitude(-6.214620).longitude(106.845130).build());
+
+                // kurir/type yang umum ada untuk intra-city
+                requestDTO.setCourierCompany("gojek");
+                requestDTO.setCourierType("instant");
+
+                requestDTO.setDeliveryType("now");
+                requestDTO.setOriginAreaId("ID-JKT-10000");
+                requestDTO.setOriginPostalCode("10110");
+                requestDTO.setDestinationPostalCode("10110");
+
+                // bersihkan ID kosong
+                requestDTO.setOriginLocationId(null);
+                requestDTO.setDestinationLocationId(null);
+
+                // berat minimal 1000 gram biar dapat harga
+                requestDTO.getItems().forEach(it -> {
+                    if (it.getWeight() == null || it.getWeight() < 1000) it.setWeight(1000);
+                    if (it.getValue() == null || it.getValue() < 1000)   it.setValue(1000);
+                });
+            } else {
+                // --- PRODUCTION/REAL FLOW GUARDS (aman walau testMode=false) ---
+                if ("instant".equalsIgnoreCase(requestDTO.getCourierType())) {
+                    requireValidCoord("origin", requestDTO.getOriginCoordinate());
+                    requireValidCoord("destination", requestDTO.getDestinationCoordinate());
+                }
+                if (isBlank(requestDTO.getOriginLocationId())) requestDTO.setOriginLocationId(null);
+                if (isBlank(requestDTO.getDestinationLocationId())) requestDTO.setDestinationLocationId(null);
+            }
+
+            // Call Biteship
             CreateOrderResponseDTO response = biteshipShippingClient.createOrder(requestDTO);
-            log.debug("Successfully created order");
+            log.debug("Successfully created order: {}", response);
             return response;
+
         } catch (Exception e) {
             log.error("Failed to create order. Error: {}", e.getMessage(), e);
             throw new ShippingException("Failed to create order: " + e.getMessage(), e);
         }
     }
+
+    private static void requireValidCoord(String label, CoordinateDTO c) {
+        if (c == null || c.getLatitude() == null || c.getLongitude() == null) {
+            throw new IllegalArgumentException("Missing " + label + " coordinate");
+        }
+        if (Math.abs(c.getLatitude()) < 1e-6 && Math.abs(c.getLongitude()) < 1e-6) {
+            throw new IllegalArgumentException("Invalid " + label + " coordinate (0,0)");
+        }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
 
     @Override
     public RetrieveOrderResponseDTO retrieveOrderById(String orderId) {

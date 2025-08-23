@@ -35,7 +35,12 @@
 		<jjwt.version>0.12.6</jjwt.version>
 		<resend.version>4.5.0</resend.version>
 	</properties>
-	<dependencies>
+		<dependencies>
+			<dependency>
+				<groupId>com.nimbusds</groupId>
+				<artifactId>nimbus-jose-jwt</artifactId>
+				<version>9.37.3</version>
+			</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>

@@ -26,6 +26,7 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 import com.sahaja.swalayan.ecommerce.domain.repository.UserRepository;
 import com.sahaja.swalayan.ecommerce.common.CustomUserDetailsService;
 
@@ -70,9 +71,7 @@ public class SecurityConfig {
             // Disable CSRF for API endpoints (stateless authentication)
             .csrf(AbstractHttpConfigurer::disable)
 
-            // Configure CORS (allow cross-origin requests)
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            
+
             // Configure session management (stateless for API)
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -93,10 +92,19 @@ public class SecurityConfig {
             
             // Configure authorization rules
             .authorizeHttpRequests(authz -> authz
+                // Allow CORS preflight requests globally
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                 // Public endpoints - Authentication/Registration
                 .requestMatchers(HttpMethod.POST, "/v1/auth/register").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/auth/confirm").permitAll()
                 .requestMatchers(HttpMethod.POST, "/v1/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/v1/auth/google").permitAll()
+                .requestMatchers(HttpMethod.POST, "/v1/auth/firebase/exchange").permitAll()
+                // Allow first-admin registration to hit controller; controller enforces restriction thereafter
+                .requestMatchers(HttpMethod.POST, "/v1/auth/admin/register").permitAll()
+                // Public store settings (no secrets)
+                .requestMatchers(HttpMethod.GET, "/v1/store-settings").permitAll()
                 
                 // Product APIs - method-based access control
                 .requestMatchers(HttpMethod.GET, "/v1/products/**").permitAll()
@@ -113,6 +121,10 @@ public class SecurityConfig {
                 // Public endpoint for static product images
                 .requestMatchers("/uploads/products/**").permitAll()
 
+                // Public shipping helpers
+                .requestMatchers(HttpMethod.GET, "/v1/shipping/couriers").permitAll()
+                .requestMatchers(HttpMethod.GET, "/v1/shipping/areas").permitAll()
+                .requestMatchers(HttpMethod.POST, "/v1/shipping/rates").permitAll()
                 
                 // Public webhooks (validated by their own tokens inside controllers)
                 .requestMatchers("/v1/payments/webhook").permitAll()
@@ -130,6 +142,9 @@ public class SecurityConfig {
                 .requestMatchers("/favicon.ico").permitAll()
                 .requestMatchers("/error").permitAll()
                 
+                // Admin endpoints
+                .requestMatchers("/v1/admin/**").hasRole("ADMIN")
+
                 // All other endpoints require authentication
                 .anyRequest().authenticated()
             )
@@ -143,45 +158,31 @@ public class SecurityConfig {
         return http.build();
     }
 
+    // Ensure a top-level CORS filter answers preflight with proper headers even before security kicks in
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public org.springframework.boot.web.servlet.FilterRegistrationBean<CorsFilter> corsFilterRegistration() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // Allow specific origins (configure based on your frontend URLs)
-        configuration.setAllowedOriginPatterns(List.of(
-            "http://localhost:*",
-            "https://localhost:*",
-            "https://*.sahajaswalayan.com"
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:3001"
         ));
-        
-        // Allow specific HTTP methods
-        configuration.setAllowedMethods(List.of(
-            "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
-        ));
-        
-        // Allow specific headers
-        configuration.setAllowedHeaders(List.of(
-            "Authorization",
-            "Content-Type",
-            "X-Requested-With",
-            "Accept",
-            "Origin",
-            "Access-Control-Request-Method",
-            "Access-Control-Request-Headers"
-        ));
-        
-        // Allow credentials (cookies, authorization headers)
+        configuration.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
-        
-        // Cache preflight response for 1 hour
+        configuration.setExposedHeaders(List.of("Authorization","Content-Type","X-Requested-With","Set-Cookie"));
         configuration.setMaxAge(3600L);
-        
-        UrlBasedCorsConfigurationSource source = 
-            new UrlBasedCorsConfigurationSource();
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-        
-        return source;
+
+        var bean = new org.springframework.boot.web.servlet.FilterRegistrationBean<>(new CorsFilter(source));
+        bean.setOrder(org.springframework.core.Ordered.HIGHEST_PRECEDENCE);
+        return bean;
     }
+
+
 
     @Bean
     public AuthenticationEntryPoint customAuthenticationEntryPoint() {

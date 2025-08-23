@@ -70,6 +70,34 @@ public class Order {
     @Column(name = "shipping_status", length = 50)
     private String shippingStatus; // e.g., "pending", "on_delivery", "delivered"
 
+    // --- Enriched shipping/courier details (populated via webhook) ---
+    @Column(name = "courier_waybill_id", length = 100)
+    private String courierWaybillId;
+
+    @Column(name = "courier_company", length = 50)
+    private String courierCompany; // e.g., gojek, jne
+
+    @Column(name = "courier_type", length = 50)
+    private String courierType; // e.g., instant, same_day, reg
+
+    @Column(name = "courier_driver_name", length = 150)
+    private String courierDriverName;
+
+    @Column(name = "courier_driver_phone", length = 50)
+    private String courierDriverPhone;
+
+    @Column(name = "courier_driver_plate_number", length = 50)
+    private String courierDriverPlateNumber;
+
+    @Column(name = "courier_driver_photo_url", length = 500)
+    private String courierDriverPhotoUrl;
+
+    @Column(name = "courier_link", length = 500)
+    private String courierLink; // provider tracking link
+
+    @Column(name = "shipping_updated_at")
+    private LocalDateTime shippingUpdatedAt; // last provider update time
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
