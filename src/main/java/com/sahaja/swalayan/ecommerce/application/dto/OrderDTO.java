@@ -45,4 +45,24 @@ public class OrderDTO {
     private LocalDate estimatedDeliveryDate;
     @JsonProperty("shipping_status")
     private String shippingStatus; // e.g., "pending", "on_delivery", "delivered"
+
+    // Enriched courier/driver info
+    @JsonProperty("courier_waybill_id")
+    private String courierWaybillId;
+    @JsonProperty("courier_company")
+    private String courierCompany;
+    @JsonProperty("courier_type")
+    private String courierType;
+    @JsonProperty("courier_driver_name")
+    private String courierDriverName;
+    @JsonProperty("courier_driver_phone")
+    private String courierDriverPhone;
+    @JsonProperty("courier_driver_plate_number")
+    private String courierDriverPlateNumber;
+    @JsonProperty("courier_driver_photo_url")
+    private String courierDriverPhotoUrl;
+    @JsonProperty("courier_link")
+    private String courierLink;
+    @JsonProperty("shipping_updated_at")
+    private LocalDateTime shippingUpdatedAt;
 }

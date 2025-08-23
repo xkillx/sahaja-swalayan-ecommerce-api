@@ -1,5 +1,6 @@
 package com.sahaja.swalayan.ecommerce.application.controller.v1;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sahaja.swalayan.ecommerce.application.dto.ShippingWebhookPayload;
 import com.sahaja.swalayan.ecommerce.domain.service.ShippingService;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CourierResponseDTO;
@@ -18,6 +19,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.util.Base64;
+import java.util.Map;
+
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -26,6 +35,7 @@ public class ShippingController {
 
     private final ShippingService shippingService;
     private final com.sahaja.swalayan.ecommerce.application.service.ShippingWebhookService shippingWebhookService;
+    private final ObjectMapper objectMapper;
 
     @org.springframework.beans.factory.annotation.Value("${shipping.webhook.token:}")
     private String shippingWebhookToken;
@@ -34,11 +44,27 @@ public class ShippingController {
     @org.springframework.beans.factory.annotation.Value("${shipping.webhook.open:false}")
     private boolean shippingWebhookOpen;
 
+    // Biteship signature verification configs
+    @org.springframework.beans.factory.annotation.Value("${shipping.webhook.signature.key:}")
+    private String signatureHeaderKey;
+
+    @org.springframework.beans.factory.annotation.Value("${shipping.webhook.signature.secret:}")
+    private String signatureSecret;
+
     @Operation(summary = "Get available couriers for selection during checkout")
     @GetMapping("/couriers")
     public ResponseEntity<CourierResponseDTO> getAvailableCouriers() {
         log.debug("Fetching available couriers");
         CourierResponseDTO response = shippingService.getAvailableCouriers();
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Search areas for address selection", description = "Searches areas (cities, districts) to help users pick accurate area_id for shipping.")
+    @GetMapping("/areas")
+    public ResponseEntity<com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.AreaResponseDTO> searchAreas(
+            @RequestParam(name = "q") String query) {
+        log.debug("Searching areas: {}", query);
+        var response = shippingService.searchAreas(query);
         return ResponseEntity.ok(response);
     }
 
@@ -98,13 +124,14 @@ public class ShippingController {
     @Operation(summary = "Shipping provider webhook callback (e.g., Biteship)")
     @PostMapping(value = "/webhook", consumes = MediaType.ALL_VALUE)
     public ResponseEntity<com.sahaja.swalayan.ecommerce.application.dto.ApiResponse<Void>> handleShippingWebhook(
-            @RequestHeader(value = "X-Callback-Token", required = false) String callbackToken,
-            @RequestBody(required = false) ShippingWebhookPayload payload
+            @RequestHeader(required = false) Map<String, String> headers,
+            @RequestBody(required = false) String rawBody
     ) {
-        // If open flag is enabled, bypass token validation and accept empty body, returning OK
+        // --- 0) Open/testing mode: bypass signature ---
         if (shippingWebhookOpen) {
             try {
-                if (payload != null) {
+                if (rawBody != null && !rawBody.isBlank()) {
+                    ShippingWebhookPayload payload = objectMapper.readValue(rawBody, ShippingWebhookPayload.class);
                     shippingWebhookService.handleWebhook(payload);
                 } else {
                     log.debug("[shipping-webhook] Open mode: empty body accepted");
@@ -115,22 +142,113 @@ public class ShippingController {
             return ResponseEntity.ok(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.success("OK"));
         }
 
-        // Optional token validation via config property shipping.webhook.token with fallback to env/JVM
-        String expected = this.shippingWebhookToken;
-        if (expected == null || expected.isBlank()) {
-            expected = System.getenv("SHIPPING_WEBHOOK_TOKEN");
+        // --- 1) Resolve config ---
+        final String headerKey = firstNonBlank(this.signatureHeaderKey,
+                System.getenv("SHIPPING_WEBHOOK_SIGNATURE_KEY"),
+                System.getProperty("shipping.webhook.signature.key"),
+                "X-Biteship-Signature"); // sane default
+
+        final String secret = firstNonBlank(this.signatureSecret,
+                System.getenv("SHIPPING_WEBHOOK_SIGNATURE_SECRET"),
+                System.getProperty("shipping.webhook.signature.secret"));
+
+        if (!hasText(headerKey) || !hasText(secret)) {
+            log.warn("[shipping-webhook] Signature verification not configured (missing key/secret)");
+            return ResponseEntity.status(500)
+                    .body(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.error("Signature verification not configured"));
         }
-        if (expected == null || expected.isBlank()) {
-            expected = System.getProperty("shipping.webhook.token");
+
+        // --- 2) Read provided signature (case-insensitive header) ---
+        final String providedSignature = getHeaderIgnoreCase(headers, headerKey);
+        if (!hasText(providedSignature)) {
+            log.warn("[shipping-webhook] Missing signature header: {}", headerKey);
+            return ResponseEntity.status(403)
+                    .body(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.error("Missing signature header"));
         }
-        if (expected != null && !expected.isBlank()) {
-            if (callbackToken == null || !expected.equals(callbackToken)) {
-                log.warn("Invalid or missing X-Callback-Token for shipping webhook");
+
+        if (rawBody == null) rawBody = "";
+
+        // --- 3) Validate signature (shared-secret OR HMAC-SHA256) ---
+        try {
+            // Mode A: shared-secret header value equals our secret
+            boolean sharedSecretOk = constantTimeEquals(providedSignature, secret);
+
+            // Mode B: HMAC over raw body (support Base64 or hex header)
+            byte[] mac = hmacSha256(rawBody, secret);
+            String computedBase64 = Base64.getEncoder().encodeToString(mac);
+            String computedHexLower = toHexLower(mac);
+
+            boolean hmacOk =
+                    constantTimeEquals(providedSignature, computedBase64) ||
+                            constantTimeEquals(providedSignature, computedHexLower);
+
+            if (!(sharedSecretOk || hmacOk)) {
+                log.warn("[shipping-webhook] Invalid signature provided");
                 return ResponseEntity.status(403)
-                        .body(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.error("Invalid X-Callback-Token"));
+                        .body(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.error("Invalid signature"));
             }
+        } catch (Exception ex) {
+            log.error("[shipping-webhook] Error computing signature: {}", ex.getMessage());
+            return ResponseEntity.status(500)
+                    .body(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.error("Signature verification failed"));
         }
-        shippingWebhookService.handleWebhook(payload);
-        return ResponseEntity.ok(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.success("Shipping webhook processed successfully"));
+
+        // --- 4) Process payload (don’t trigger retry storms) ---
+        try {
+            if (rawBody != null && !rawBody.isBlank()) {
+                ShippingWebhookPayload payload = objectMapper.readValue(rawBody, ShippingWebhookPayload.class);
+                shippingWebhookService.handleWebhook(payload);
+            } else {
+                log.warn("[shipping-webhook] Valid signature but empty body");
+            }
+            return ResponseEntity.ok(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.success("Shipping webhook processed successfully"));
+        } catch (Exception ex) {
+            log.warn("[shipping-webhook] Valid signature but error parsing payload: {}", ex.getMessage());
+            return ResponseEntity.ok(com.sahaja.swalayan.ecommerce.application.dto.ApiResponse.success("OK"));
+        }
     }
+
+    /* ===================== helpers ===================== */
+
+    private static boolean hasText(String s) {
+        return s != null && !s.trim().isEmpty();
+    }
+
+    private static String getHeaderIgnoreCase(Map<String, String> headers, String key) {
+        if (headers == null || key == null) return null;
+        for (Map.Entry<String, String> e : headers.entrySet()) {
+            if (e.getKey() != null && e.getKey().equalsIgnoreCase(key)) return e.getValue();
+        }
+        return null;
+    }
+
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) return false;
+        byte[] x = a.getBytes(StandardCharsets.UTF_8);
+        byte[] y = b.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(x, y); // constant-time
+    }
+
+    private static byte[] hmacSha256(String data, String secret) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("HMAC init/final failed", e);
+        }
+    }
+
+    private static String toHexLower(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte by : bytes) sb.append(String.format("%02x", by));
+        return sb.toString();
+    }
+
+    private static String firstNonBlank(String... vals) {
+        if (vals == null) return null;
+        for (String v : vals) if (v != null && !v.trim().isEmpty()) return v.trim();
+        return null;
+    }
+
 }

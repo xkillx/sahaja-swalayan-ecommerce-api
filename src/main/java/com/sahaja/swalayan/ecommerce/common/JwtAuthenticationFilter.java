@@ -34,35 +34,64 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain)
-            throws ServletException, IOException {
-        String authHeader = request.getHeader("Authorization");
-        String token = null;
-        String username = null;
+            @NonNull FilterChain filterChain
+    ) throws ServletException, IOException {
+
+        // 1) Always let preflight pass
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        final String authHeader = request.getHeader("Authorization");
+
+        // 2) If no bearer, skip and let downstream @PreAuthorize / Security rules handle it
+        if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        final String token = authHeader.substring(7);
 
         try {
-            // Extract JWT token from Authorization header
-            if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
-                token = authHeader.substring(7);
-                username = jwtTokenUtil.getUsernameFromToken(token);
-            }
+            // 3) Extract username and validate
+            final String username = jwtTokenUtil.getUsernameFromToken(token);
 
-            // Validate token and set authentication
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 if (jwtTokenUtil.validateToken(token)) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails, null, userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    writeUnauthorizedJsonWithCorsEcho(request, response, "Invalid or expired token");
+                    return;
                 }
             }
+
+            // 4) Continue chain
             filterChain.doFilter(request, response);
+
         } catch (JwtException ex) {
-            log.error("Invalid JWT token: {}", ex.getMessage());
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"success\":false,\"message\":\"Invalid JWT token\"}");
+            log.warn("JWT parse/validation error: {}", ex.getMessage());
+            writeUnauthorizedJsonWithCorsEcho(request, response, "Invalid JWT token");
         }
+    }
+
+    private void writeUnauthorizedJsonWithCorsEcho(HttpServletRequest request,
+                                                   HttpServletResponse response,
+                                                   String message) throws IOException {
+        // Echo CORS so the browser doesn’t hide this response
+        String origin = request.getHeader("Origin");
+        if (origin != null) {
+            response.setHeader("Access-Control-Allow-Origin", origin);
+            response.setHeader("Vary", "Origin");
+            response.setHeader("Access-Control-Allow-Credentials", "true");
+        }
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"success\":false,\"message\":\"" + message + "\"}");
     }
 }

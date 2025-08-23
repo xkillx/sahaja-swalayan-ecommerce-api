@@ -26,6 +26,8 @@ import com.sahaja.swalayan.ecommerce.domain.service.PaymentService;
 import com.sahaja.swalayan.ecommerce.domain.service.ShippingService;
 import com.sahaja.swalayan.ecommerce.infrastructure.config.ShippingOriginProperties;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CoordinateDTO;
+import com.sahaja.swalayan.ecommerce.infrastructure.repository.StoreSettingsRepository;
+import com.sahaja.swalayan.ecommerce.domain.model.settings.StoreSettings;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderRequestDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.CreateOrderResponseDTO;
 import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.OrderItemDTO;
@@ -56,6 +58,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final OrderItemRepository orderItemRepository;
     private final ProductRepository productRepository;
     private final ShippingOriginProperties shippingOriginProperties;
+    private final StoreSettingsRepository storeSettingsRepository;
 
     @Value("${xendit.success-redirect-url}")
     private String xenditSuccessRedirectUrl;
@@ -270,13 +273,31 @@ public class PaymentServiceImpl implements PaymentService {
                             .build();
                 }
 
-                // Origin (warehouse) from configuration
+                // Origin (warehouse) from Store Settings (do not use ShippingOriginProperties for lat/lng/address)
                 CoordinateDTO originCoordinate = null;
-                if (shippingOriginProperties.getLatitude() != null && shippingOriginProperties.getLongitude() != null) {
-                    originCoordinate = CoordinateDTO.builder()
-                            .latitude(shippingOriginProperties.getLatitude())
-                            .longitude(shippingOriginProperties.getLongitude())
-                            .build();
+                String originAddress = null;
+                String shipperOrganization = null;
+                var storeSettingsOpt = storeSettingsRepository.findAll().stream().findFirst();
+                if (storeSettingsOpt.isPresent()) {
+                    StoreSettings s = storeSettingsOpt.get();
+                    if (s.getLatitude() != null && s.getLongitude() != null) {
+                        originCoordinate = CoordinateDTO.builder()
+                                .latitude(s.getLatitude())
+                                .longitude(s.getLongitude())
+                                .build();
+                    }
+                    originAddress = s.getAddressLine();
+                    shipperOrganization = s.getStoreName();
+                }
+
+                // If still missing, skip creating shipping to avoid invalid request
+                if (destinationCoordinate == null) {
+                    log.debug("[handleXenditWebhook] Destination coordinate missing; skipping shipping creation for order: {}", order.getId());
+                    return;
+                }
+                if (originCoordinate == null) {
+                    log.debug("[handleXenditWebhook] Store origin coordinate missing (configure Store Settings); skipping shipping creation for order: {}", order.getId());
+                    return;
                 }
 
                 // Determine destination email from order user
@@ -290,17 +311,17 @@ public class PaymentServiceImpl implements PaymentService {
                         .shipperContactName(shippingOriginProperties.getContactName())
                         .shipperContactPhone(shippingOriginProperties.getContactPhone())
                         .shipperContactEmail(shippingOriginProperties.getContactEmail())
-                        .shipperOrganization(shippingOriginProperties.getOrganization())
-                        // Origin
+                        .shipperOrganization(shipperOrganization != null ? shipperOrganization : shippingOriginProperties.getOrganization())
+                        // Origin (use Store Settings for address/coords)
                         .originContactName(shippingOriginProperties.getContactName())
                         .originContactPhone(shippingOriginProperties.getContactPhone())
                         .originContactEmail(shippingOriginProperties.getContactEmail())
-                        .originAddress(shippingOriginProperties.getAddress())
-                        .originNote(shippingOriginProperties.getNote())
-                        .originPostalCode(shippingOriginProperties.getPostalCode())
-                        .originAreaId(shippingOriginProperties.getAreaId())
-                        .originLocationId(shippingOriginProperties.getLocationId())
-                        .originCollectionMethod(shippingOriginProperties.getCollectionMethod())
+                        .originAddress(originAddress)
+                        .originNote(null)
+                        .originPostalCode(null)
+                        .originAreaId(null)
+                        .originLocationId(null)
+                        .originCollectionMethod(null)
                         .originCoordinate(originCoordinate)
                         // Destination
                         .destinationContactName(addr.getContactName())
