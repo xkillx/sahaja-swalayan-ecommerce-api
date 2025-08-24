@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +30,9 @@ import java.util.UUID;
 public class AdminOrderController {
 
     private final OrderJpaRepository orderRepo;
+    private final com.sahaja.swalayan.ecommerce.infrastructure.repository.RefundJobRepository refundJobRepository;
+    private final com.sahaja.swalayan.ecommerce.domain.repository.PaymentRepository paymentRepository;
+    private final com.sahaja.swalayan.ecommerce.infrastructure.repository.ShippingJobRepository shippingJobRepository;
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -90,8 +95,103 @@ public class AdminOrderController {
         return ResponseEntity.ok(ApiResponse.success("Status updated", order));
     }
 
+    @PostMapping("/{id}/refund")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String,Object>>> requestRefund(@PathVariable UUID id, @RequestBody RefundRequest req) {
+        Optional<Order> orderOpt = orderRepo.findById(id);
+        if (orderOpt.isEmpty()) return ResponseEntity.status(404).body(ApiResponse.error("Order not found"));
+        Order order = orderOpt.get();
+        if (req == null || req.amount == null || req.amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Invalid refund amount"));
+        }
+        // Mark latest PAID payment as REFUND_REQUESTED (if any)
+        paymentRepository.findByOrderId(order.getId()).stream()
+                .max(Comparator.comparing(com.sahaja.swalayan.ecommerce.domain.model.order.Payment::getCreatedAt))
+                .ifPresent(p -> {
+                    if (p.getPaymentStatus() != com.sahaja.swalayan.ecommerce.domain.model.order.PaymentStatus.REFUNDED) {
+                        p.setPaymentStatus(com.sahaja.swalayan.ecommerce.domain.model.order.PaymentStatus.REFUND_REQUESTED);
+                        paymentRepository.save(p);
+                    }
+                });
+        // We keep order status unchanged here; RefundJobWorker will set REFUNDED upon success
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepo.save(order);
+        // Enqueue refund job
+        var job = com.sahaja.swalayan.ecommerce.domain.model.order.RefundJob.builder()
+                .orderId(order.getId())
+                .amount(req.amount)
+                .reason(req.reason)
+                .status(com.sahaja.swalayan.ecommerce.domain.model.order.RefundJob.RefundJobStatus.PENDING)
+                .attempts(0)
+                .lastError(null)
+                .nextRunAt(LocalDateTime.now())
+                .build();
+        job = refundJobRepository.save(job);
+        Map<String,Object> data = new HashMap<>();
+        data.put("jobId", job.getId());
+        data.put("status", job.getStatus());
+        return ResponseEntity.ok(ApiResponse.success("Refund enqueued", data));
+    }
+
+    @PostMapping("/{id}/refund/retry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String,Object>>> retryRefund(@PathVariable UUID id) {
+        var list = refundJobRepository.findByOrderIdOrderByCreatedAtDesc(id);
+        if (list == null || list.isEmpty()) {
+            return ResponseEntity.status(404).body(ApiResponse.error("No refund job found for order"));
+        }
+        var job = list.get(0);
+        job.setStatus(com.sahaja.swalayan.ecommerce.domain.model.order.RefundJob.RefundJobStatus.PENDING);
+        job.setNextRunAt(LocalDateTime.now());
+        job.setLastError(null);
+        job.setAttempts(Math.max(0, job.getAttempts() - 1));
+        refundJobRepository.save(job);
+        Map<String,Object> data = new HashMap<>();
+        data.put("jobId", job.getId());
+        data.put("status", job.getStatus());
+        return ResponseEntity.ok(ApiResponse.success("Refund retry scheduled", data));
+    }
+
+    @PostMapping("/{id}/shipping/retry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String,Object>>> retryShipping(@PathVariable UUID id) {
+        var list = new java.util.ArrayList<>(shippingJobRepository.findByOrderIdOrderByCreatedAtDesc(id));
+        if (list.isEmpty()) {
+            // create a new job if none exists
+            var job = com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.builder()
+                    .orderId(id)
+                    .type(com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.ShippingJobType.CREATE_ORDER)
+                    .status(com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.ShippingJobStatus.PENDING)
+                    .attempts(0)
+                    .lastError(null)
+                    .nextRunAt(LocalDateTime.now())
+                    .build();
+            job = shippingJobRepository.save(job);
+            Map<String,Object> data = new HashMap<>();
+            data.put("jobId", job.getId());
+            data.put("status", job.getStatus());
+            return ResponseEntity.ok(ApiResponse.success("Shipping retry scheduled", data));
+        }
+        var job = list.get(0);
+        job.setStatus(com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.ShippingJobStatus.PENDING);
+        job.setNextRunAt(LocalDateTime.now());
+        job.setLastError(null);
+        job.setAttempts(Math.max(0, job.getAttempts() - 1));
+        shippingJobRepository.save(job);
+        Map<String,Object> data = new HashMap<>();
+        data.put("jobId", job.getId());
+        data.put("status", job.getStatus());
+        return ResponseEntity.ok(ApiResponse.success("Shipping retry scheduled", data));
+    }
+
     @Data
     public static class UpdateStatusRequest {
         private Status status;
+    }
+
+    @Data
+    public static class RefundRequest {
+        public BigDecimal amount;
+        public String reason;
     }
 }

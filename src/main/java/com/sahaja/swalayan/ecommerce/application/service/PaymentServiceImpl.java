@@ -59,6 +59,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final ProductRepository productRepository;
     private final ShippingOriginProperties shippingOriginProperties;
     private final StoreSettingsRepository storeSettingsRepository;
+    private final com.sahaja.swalayan.ecommerce.infrastructure.repository.ShippingJobRepository shippingJobRepository;
 
     @Value("${xendit.success-redirect-url}")
     private String xenditSuccessRedirectUrl;
@@ -203,7 +204,7 @@ public class PaymentServiceImpl implements PaymentService {
         paymentRepository.save(payment);
         log.debug("[handleXenditWebhook] Payment updated and saved. PaymentId: {}, Status: {}", payment.getId(), payment.getPaymentStatus());
 
-        // If payment is PAID, attempt to create a shipping order
+        // If payment is PAID, enqueue a shipping job to create a shipping order
         if (payment.getPaymentStatus() == PaymentStatus.PAID) {
             try {
                 // Fetch order and validate
@@ -224,151 +225,18 @@ public class PaymentServiceImpl implements PaymentService {
                     return; // do not throw, payment already processed
                 }
 
-                // Build items
-                List<OrderItem> orderItems = orderItemRepository.findByOrderId(order.getId());
-                if (orderItems == null || orderItems.isEmpty()) {
-                    log.debug("[handleXenditWebhook] No order items found for order: {}. Skipping shipping creation.", order.getId());
-                    return;
-                }
-                var itemDTOs = new ArrayList<OrderItemDTO>();
-                for (OrderItem oi : orderItems) {
-                    Product product = productRepository.findById(oi.getProductId()).orElse(null);
-                    if (product == null) {
-                        log.debug("[handleXenditWebhook] Product not found for productId: {}. Skipping this item.", oi.getProductId());
-                        continue;
-                    }
-                    Integer value = oi.getPricePerUnit() != null ? oi.getPricePerUnit().setScale(0, RoundingMode.HALF_UP).intValue() : null;
-                    OrderItemDTO item = OrderItemDTO.builder()
-                            .name(product.getName())
-                            .description(product.getDescription())
-                            // Category is optional in Biteship; omit to let it default to 'others'
-                            .category(null)
-                            .sku(product.getSku())
-                            .value(value)
-                            .quantity(oi.getQuantity())
-                            .weight(product.getWeight())
-                            .height(product.getHeight())
-                            .length(product.getLength())
-                            .width(product.getWidth())
-                            .build();
-                    itemDTOs.add(item);
-                }
-
-                if (itemDTOs.isEmpty()) {
-                    log.debug("[handleXenditWebhook] No valid items to ship for order: {}. Skipping shipping creation.", order.getId());
-                    return;
-                }
-
-                // Destination (customer address)
-                var addr = order.getShippingAddress();
-                if (addr == null) {
-                    log.debug("[handleXenditWebhook] Shipping address is null for order: {}. Skipping shipping creation.", order.getId());
-                    return;
-                }
-                CoordinateDTO destinationCoordinate = null;
-                if (addr.getLatitude() != null && addr.getLongitude() != null) {
-                    destinationCoordinate = CoordinateDTO.builder()
-                            .latitude(addr.getLatitude())
-                            .longitude(addr.getLongitude())
-                            .build();
-                }
-
-                // Origin (warehouse) from Store Settings (do not use ShippingOriginProperties for lat/lng/address)
-                CoordinateDTO originCoordinate = null;
-                String originAddress = null;
-                String shipperOrganization = null;
-                var storeSettingsOpt = storeSettingsRepository.findAll().stream().findFirst();
-                if (storeSettingsOpt.isPresent()) {
-                    StoreSettings s = storeSettingsOpt.get();
-                    if (s.getLatitude() != null && s.getLongitude() != null) {
-                        originCoordinate = CoordinateDTO.builder()
-                                .latitude(s.getLatitude())
-                                .longitude(s.getLongitude())
-                                .build();
-                    }
-                    originAddress = s.getAddressLine();
-                    shipperOrganization = s.getStoreName();
-                }
-
-                // If still missing, skip creating shipping to avoid invalid request
-                if (destinationCoordinate == null) {
-                    log.debug("[handleXenditWebhook] Destination coordinate missing; skipping shipping creation for order: {}", order.getId());
-                    return;
-                }
-                if (originCoordinate == null) {
-                    log.debug("[handleXenditWebhook] Store origin coordinate missing (configure Store Settings); skipping shipping creation for order: {}", order.getId());
-                    return;
-                }
-
-                // Determine destination email from order user
-                var destinationEmail = userRepository.findById(order.getUserId())
-                        .map(u -> u.getEmail())
-                        .orElse(null);
-
-                CreateOrderRequestDTO.CreateOrderRequestDTOBuilder builder = CreateOrderRequestDTO.builder()
-                        .referenceId(order.getId().toString())
-                        // Shipper (optional)
-                        .shipperContactName(shippingOriginProperties.getContactName())
-                        .shipperContactPhone(shippingOriginProperties.getContactPhone())
-                        .shipperContactEmail(shippingOriginProperties.getContactEmail())
-                        .shipperOrganization(shipperOrganization != null ? shipperOrganization : shippingOriginProperties.getOrganization())
-                        // Origin (use Store Settings for address/coords)
-                        .originContactName(shippingOriginProperties.getContactName())
-                        .originContactPhone(shippingOriginProperties.getContactPhone())
-                        .originContactEmail(shippingOriginProperties.getContactEmail())
-                        .originAddress(originAddress)
-                        .originNote(null)
-                        .originPostalCode(null)
-                        .originAreaId(null)
-                        .originLocationId(null)
-                        .originCollectionMethod(null)
-                        .originCoordinate(originCoordinate)
-                        // Destination
-                        .destinationContactName(addr.getContactName())
-                        .destinationContactPhone(addr.getContactPhone())
-                        .destinationContactEmail(destinationEmail)
-                        .destinationAddress(addr.getAddressLine())
-                        .destinationPostalCode(addr.getPostalCode())
-                        .destinationAreaId(addr.getAreaId())
-                        .destinationLocationId(null)
-                        .destinationProofOfDelivery(null)
-                        .destinationProofOfDeliveryNote(null)
-                        .destinationCashOnDelivery(null)
-                        .destinationCashOnDeliveryType(null)
-                        .destinationCoordinate(destinationCoordinate)
-                        // Courier
-                        .courierCompany(order.getShippingCourierCode())
-                        .courierType(order.getShippingCourierService() != null ? order.getShippingCourierService().toLowerCase() : null)
-                        .courierInsurance(null)
-                        // Delivery
-                        .deliveryType("now")
-                        .orderNote(null);
-
-                // Add items via singular builder method
-                for (OrderItemDTO it : itemDTOs) {
-                    builder.item(it);
-                }
-
-                CreateOrderRequestDTO requestDTO = builder.build();
-                log.debug("[handleXenditWebhook] Calling shippingService.createOrder for OrderId: {} with request: {}", order.getId(), requestDTO);
-                CreateOrderResponseDTO response = shippingService.createOrder(requestDTO);
-                if (response != null && response.isSuccess()) {
-                    String shippingOrderId = response.getId();
-                    String trackingId = response.getCourier() != null ? response.getCourier().getTrackingId() : null;
-                    String shippingStatus = response.getStatus();
-
-                    order.setShippingOrderId(shippingOrderId);
-                    order.setTrackingId(trackingId);
-                    order.setShippingStatus(shippingStatus != null ? shippingStatus : "waiting_pickup");
-                    // Move order to CONFIRMED (paid, waiting pickup)
-                    if (order.getStatus() != Status.CONFIRMED) {
-                        order.setStatus(Status.CONFIRMED);
-                    }
-                    orderRepository.save(order);
-                    log.debug("[handleXenditWebhook] Shipping order created for OrderId: {}. ShippingOrderId: {}, TrackingId: {}", order.getId(), shippingOrderId, trackingId);
-                } else {
-                    log.error("[handleXenditWebhook] Failed to create shipping order for OrderId: {}. Response: {}", order.getId(), response);
-                }
+                // Enqueue job
+                var job = com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.builder()
+                        .orderId(order.getId())
+                        .type(com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.ShippingJobType.CREATE_ORDER)
+                        .status(com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.ShippingJobStatus.PENDING)
+                        .attempts(0)
+                        .lastError(null)
+                        .nextRunAt(java.time.LocalDateTime.now())
+                        .build();
+                // Save via repository (autowired)
+                shippingJobRepository.save(job);
+                log.debug("[handleXenditWebhook] Enqueued shipping job CREATE_ORDER for order {}", order.getId());
             } catch (Exception ex) {
                 // Do not rethrow; payment update must not be rolled back due to shipping failure
                 log.error("[handleXenditWebhook] Error while creating shipping for Payment externalId: {}. Error: {}", externalId, ex.getMessage(), ex);
