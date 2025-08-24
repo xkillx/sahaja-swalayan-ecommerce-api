@@ -125,6 +125,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/v1/shipping/couriers").permitAll()
                 .requestMatchers(HttpMethod.GET, "/v1/shipping/areas").permitAll()
                 .requestMatchers(HttpMethod.POST, "/v1/shipping/rates").permitAll()
+
+                // Public coupon validate
+                .requestMatchers(HttpMethod.POST, "/v1/coupons/validate").permitAll()
                 
                 // Public webhooks (validated by their own tokens inside controllers)
                 .requestMatchers("/v1/payments/webhook").permitAll()

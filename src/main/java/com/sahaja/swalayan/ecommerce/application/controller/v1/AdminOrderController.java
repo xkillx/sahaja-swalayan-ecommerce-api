@@ -42,7 +42,8 @@ public class AdminOrderController {
             @RequestParam(defaultValue = "createdAt,desc") String sort,
             @RequestParam(required = false) Status status,
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) UUID userId
     ) {
         String[] sortParts = sort.split(",");
         String sortField = sortParts[0];
@@ -54,7 +55,10 @@ public class AdminOrderController {
         if (to != null && !to.isBlank()) toDt = LocalDate.parse(to).atTime(LocalTime.MAX);
 
         Page<Order> result;
-        if (status != null && fromDt != null && toDt != null) {
+        if (userId != null) {
+            // Prioritize user filter if provided (simple case)
+            result = orderRepo.findAllByUserId(userId, pageable);
+        } else if (status != null && fromDt != null && toDt != null) {
             result = orderRepo.findAllByStatusAndOrderDateBetween(status, fromDt, toDt, pageable);
         } else if (status != null) {
             result = orderRepo.findAllByStatus(status, pageable);
@@ -182,6 +186,22 @@ public class AdminOrderController {
         data.put("jobId", job.getId());
         data.put("status", job.getStatus());
         return ResponseEntity.ok(ApiResponse.success("Shipping retry scheduled", data));
+    }
+
+    @GetMapping("/{id}/timeline")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String,Object>>> timeline(@PathVariable UUID id) {
+        var result = new HashMap<String, Object>();
+        var refundJobs = refundJobRepository.findByOrderIdOrderByCreatedAtDesc(id);
+        var shippingJobs = shippingJobRepository.findByOrderIdOrderByCreatedAtDesc(id);
+        result.put("refundJobs", refundJobs);
+        result.put("shippingJobs", shippingJobs);
+        // expose latest statuses for quick UI badges
+        var latestRefund = (refundJobs == null || refundJobs.isEmpty()) ? null : refundJobs.get(0);
+        var latestShipping = (shippingJobs == null || shippingJobs.isEmpty()) ? null : shippingJobs.get(0);
+        result.put("refundJobStatus", latestRefund != null ? latestRefund.getStatus() : null);
+        result.put("shippingJobStatus", latestShipping != null ? latestShipping.getStatus() : null);
+        return ResponseEntity.ok(ApiResponse.success("OK", result));
     }
 
     @Data

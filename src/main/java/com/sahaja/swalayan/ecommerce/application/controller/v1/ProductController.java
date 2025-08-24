@@ -42,9 +42,43 @@ public class ProductController {
 
     @GetMapping
     @ApiGetAllProductsOperation
-    public ResponseEntity<List<ProductDTO>> getAllProducts() {
-        List<Product> products = productService.findAll();
-        List<ProductDTO> productDTOs = productMapper.toDtoList(products);
+    public ResponseEntity<List<ProductDTO>> getAllProducts(
+            @RequestParam(value = "q", required = false) String q,
+            @RequestParam(value = "name", required = false) String name,
+            @RequestParam(value = "category", required = false) String categoryParam,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        // Determine keyword from either q or name
+        String keyword = (q != null && !q.isBlank()) ? q : (name != null && !name.isBlank() ? name : null);
+
+        // Resolve category: accept UUID string or category name
+        UUID categoryId = null;
+        if (categoryParam != null && !categoryParam.isBlank()) {
+            try {
+                categoryId = UUID.fromString(categoryParam.trim());
+            } catch (IllegalArgumentException ex) {
+                // Not a UUID: try resolve by name
+                try {
+                    Category cat = categoryService.findByName(categoryParam.trim());
+                    if (cat != null) {
+                        categoryId = cat.getId();
+                    }
+                } catch (Exception ignored) {
+                    // If not found by name, keep categoryId null (no filter)
+                }
+            }
+        }
+
+        // Use search service for unified handling of filters + sorting + pagination
+        Page<Product> page = productSearchService.search(
+                keyword,
+                categoryId,
+                null, // minPrice
+                null, // maxPrice
+                null, // available
+                pageable
+        );
+        List<ProductDTO> productDTOs = productMapper.toDtoList(page.getContent());
         return ResponseEntity.ok(productDTOs);
     }
 

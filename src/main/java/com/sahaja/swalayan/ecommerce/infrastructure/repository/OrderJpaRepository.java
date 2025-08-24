@@ -25,6 +25,7 @@ public interface OrderJpaRepository extends JpaRepository<Order, UUID> {
     Page<Order> findAllByStatus(Status status, Pageable pageable);
     Page<Order> findAllByOrderDateBetween(LocalDateTime from, LocalDateTime to, Pageable pageable);
     Page<Order> findAllByStatusAndOrderDateBetween(Status status, LocalDateTime from, LocalDateTime to, Pageable pageable);
+    Page<Order> findAllByUserId(UUID userId, Pageable pageable);
 
     List<Order> findTop5ByOrderByCreatedAtDesc();
 
