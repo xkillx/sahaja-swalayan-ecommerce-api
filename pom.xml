@@ -34,6 +34,7 @@
 		<mailtrap.version>1.0.0</mailtrap.version>
 		<jjwt.version>0.12.6</jjwt.version>
 		<resend.version>4.5.0</resend.version>
+		<firebase-admin.version>9.2.0</firebase-admin.version>
 	</properties>
 		<dependencies>
 			<dependency>
@@ -141,6 +142,12 @@
 		<dependency>
 			<groupId>com.github.ben-manes.caffeine</groupId>
 			<artifactId>caffeine</artifactId>
+		</dependency>
+		<!-- Firebase Admin SDK for FCM push notifications -->
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>${firebase-admin.version}</version>
 		</dependency>
 	</dependencies>
 
