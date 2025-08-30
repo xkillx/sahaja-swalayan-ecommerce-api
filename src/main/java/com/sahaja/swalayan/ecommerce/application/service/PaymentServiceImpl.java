@@ -60,6 +60,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final ShippingOriginProperties shippingOriginProperties;
     private final StoreSettingsRepository storeSettingsRepository;
     private final com.sahaja.swalayan.ecommerce.infrastructure.repository.ShippingJobRepository shippingJobRepository;
+    private final NotificationService notificationService;
+    private final PushNotificationService pushNotificationService;
 
     @Value("${xendit.success-redirect-url}")
     private String xenditSuccessRedirectUrl;
@@ -204,42 +206,45 @@ public class PaymentServiceImpl implements PaymentService {
         paymentRepository.save(payment);
         log.debug("[handleXenditWebhook] Payment updated and saved. PaymentId: {}, Status: {}", payment.getId(), payment.getPaymentStatus());
 
-        // If payment is PAID, enqueue a shipping job to create a shipping order
+        // If payment is PAID, mark order ready for manual pickup request (do NOT auto-enqueue shipping)
         if (payment.getPaymentStatus() == PaymentStatus.PAID) {
             try {
                 // Fetch order and validate
                 Order order = orderRepository.findById(payment.getOrderId())
                         .orElseThrow(() -> new OrderNotFoundException("Order not found: " + payment.getOrderId()));
-                log.debug("[handleXenditWebhook] Preparing shipping request for OrderId: {}", order.getId());
+                log.debug("[handleXenditWebhook] Payment PAID for OrderId: {}. Marking as awaiting pickup request.", order.getId());
 
-                // If shipping already created, do nothing (idempotent)
+                // If shipping already created, nothing to do here
                 if (order.getShippingOrderId() != null && !order.getShippingOrderId().isBlank()) {
                     log.debug("[handleXenditWebhook] Shipping already created for OrderId: {}. Skipping.", order.getId());
                     return;
                 }
 
-                // Ensure shipping selection exists on order
-                if (order.getShippingCourierCode() == null || order.getShippingCourierCode().isBlank() ||
-                    order.getShippingCourierService() == null || order.getShippingCourierService().isBlank()) {
-                    log.debug("[handleXenditWebhook] Shipping courier not selected on order: {}. Skipping shipping creation.", order.getId());
-                    return; // do not throw, payment already processed
+                // Optionally set order status to CONFIRMED if still PENDING (inventory reserved and pack-ready)
+                if (order.getStatus() == Status.PENDING) {
+                    order.setStatus(Status.CONFIRMED);
                 }
 
-                // Enqueue job
-                var job = com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.builder()
-                        .orderId(order.getId())
-                        .type(com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.ShippingJobType.CREATE_ORDER)
-                        .status(com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.ShippingJobStatus.PENDING)
-                        .attempts(0)
-                        .lastError(null)
-                        .nextRunAt(java.time.LocalDateTime.now())
-                        .build();
-                // Save via repository (autowired)
-                shippingJobRepository.save(job);
-                log.debug("[handleXenditWebhook] Enqueued shipping job CREATE_ORDER for order {}", order.getId());
+                // Mark shippingStatus to indicate admin action required before requesting courier
+                order.setShippingStatus("awaiting_pickup_request");
+                order.setUpdatedAt(java.time.LocalDateTime.now());
+                orderRepository.save(order);
+
+                // Notify realtime channels (admin dashboard and user stream)
+                try {
+                    notificationService.notifyOrderPaidAwaitingPickup(order.getId(), order.getUserId());
+                } catch (Exception notifyEx) {
+                    log.warn("[handleXenditWebhook] SSE notification dispatch failed: {}", notifyEx.getMessage());
+                }
+                try {
+                    pushNotificationService.sendOrderPaidToAdmins(order.getId());
+                } catch (Exception pushEx) {
+                    log.warn("[handleXenditWebhook] Push notification failed: {}", pushEx.getMessage());
+                }
+                log.info("[handleXenditWebhook] Admin notification: Order {} is paid and awaiting pickup request.", order.getId());
             } catch (Exception ex) {
-                // Do not rethrow; payment update must not be rolled back due to shipping failure
-                log.error("[handleXenditWebhook] Error while creating shipping for Payment externalId: {}. Error: {}", externalId, ex.getMessage(), ex);
+                // Do not rethrow; payment update must not be rolled back due to notification failure
+                log.error("[handleXenditWebhook] Error while updating order after payment (awaiting pickup). externalId: {}. Error: {}", externalId, ex.getMessage(), ex);
             }
         }
     }

@@ -36,6 +36,8 @@ public class ShippingJobWorker {
     private final ShippingServiceImpl shippingService; // reuse service for API call
     private final ShippingOriginProperties shippingOriginProperties;
     private final StoreSettingsRepository storeSettingsRepository;
+    private final NotificationService notificationService;
+    private final PushNotificationService pushNotificationService;
 
     @Scheduled(fixedDelay = 30000)
     @Transactional
@@ -68,6 +70,8 @@ public class ShippingJobWorker {
                     job.setStatus(ShippingJob.ShippingJobStatus.FAILED);
                 }
                 shippingJobRepository.save(job);
+                try { notificationService.notifyShippingJobUpdate(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
+                try { pushNotificationService.sendShippingUpdateToAdmins(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
             } catch (Exception ex) {
                 boolean retryable = !(ex instanceof IllegalArgumentException || ex instanceof IllegalStateException);
                 int attempts = job.getAttempts() + 1;
@@ -80,6 +84,8 @@ public class ShippingJobWorker {
                     job.setStatus(ShippingJob.ShippingJobStatus.FAILED);
                 }
                 shippingJobRepository.save(job);
+                try { notificationService.notifyShippingJobUpdate(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
+                try { pushNotificationService.sendShippingUpdateToAdmins(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
             }
         }
     }
@@ -194,6 +200,8 @@ public class ShippingJobWorker {
 
             job.setStatus(ShippingJob.ShippingJobStatus.SUCCEEDED);
             shippingJobRepository.save(job);
+            try { notificationService.notifyShippingJobUpdate(order.getId(), job.getStatus().name(), "Shipping order created"); } catch (Exception ignore) {}
+            try { pushNotificationService.sendShippingUpdateToAdmins(order.getId(), job.getStatus().name(), "Shipping order created"); } catch (Exception ignore) {}
         } else {
             throw new IllegalStateException("Create shipping order failed");
         }

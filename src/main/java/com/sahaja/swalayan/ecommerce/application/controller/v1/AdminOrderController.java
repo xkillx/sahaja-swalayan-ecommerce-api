@@ -188,6 +188,39 @@ public class AdminOrderController {
         return ResponseEntity.ok(ApiResponse.success("Shipping retry scheduled", data));
     }
 
+    @PostMapping("/{id}/shipping/request-pickup")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String,Object>>> requestPickup(@PathVariable UUID id) {
+        var orderOpt = orderRepo.findById(id);
+        if (orderOpt.isEmpty()) return ResponseEntity.status(404).body(ApiResponse.error("Order not found"));
+        var order = orderOpt.get();
+        if (order.getShippingOrderId() != null && !order.getShippingOrderId().isBlank()) {
+            return ResponseEntity.status(409).body(ApiResponse.error("Shipping already created for this order"));
+        }
+        if (order.getShippingCourierCode() == null || order.getShippingCourierCode().isBlank() ||
+            order.getShippingCourierService() == null || order.getShippingCourierService().isBlank()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Courier selection missing on order"));
+        }
+        // Enqueue shipping job (CREATE_ORDER)
+        var job = com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.builder()
+                .orderId(order.getId())
+                .type(com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.ShippingJobType.CREATE_ORDER)
+                .status(com.sahaja.swalayan.ecommerce.domain.model.order.ShippingJob.ShippingJobStatus.PENDING)
+                .attempts(0)
+                .lastError(null)
+                .nextRunAt(LocalDateTime.now())
+                .build();
+        job = shippingJobRepository.save(job);
+        // Mark order shipping status as queued for pickup
+        order.setShippingStatus("pickup_requested");
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepo.save(order);
+        Map<String,Object> data = new HashMap<>();
+        data.put("jobId", job.getId());
+        data.put("status", job.getStatus());
+        return ResponseEntity.ok(ApiResponse.success("Pickup requested and shipping job enqueued", data));
+    }
+
     @GetMapping("/{id}/timeline")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Map<String,Object>>> timeline(@PathVariable UUID id) {
