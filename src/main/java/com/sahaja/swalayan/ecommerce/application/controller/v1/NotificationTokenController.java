@@ -26,12 +26,23 @@ public class NotificationTokenController {
     @Operation(summary = "Register/upsert a push token for the current device")
     @PostMapping
     public ResponseEntity<ApiResponse<Map<String, Object>>> register(@RequestBody RegisterTokenRequest req,
-                                                                     @RequestHeader(value = "User-Agent", required = false) String userAgent) {
+                                                                     @RequestHeader(value = "User-Agent", required = false) String userAgent,
+                                                                     org.springframework.security.core.Authentication auth) {
         if (req == null || req.token == null || req.token.isBlank()) {
             return ResponseEntity.badRequest().body(ApiResponse.error("Token is required"));
         }
         NotificationToken token = tokenRepo.findByToken(req.token).orElseGet(() -> NotificationToken.builder().token(req.token).build());
-        token.setUserId(req.userId);
+        // Derive userId from authenticated principal when present
+        try {
+            if (auth != null && auth.isAuthenticated() && auth.getName() != null) {
+                java.util.UUID uid = java.util.UUID.fromString(auth.getName());
+                token.setUserId(uid);
+            } else {
+                token.setUserId(null);
+            }
+        } catch (Exception ignore) {
+            token.setUserId(null);
+        }
         token.setApp(safe(req.app));
         token.setPlatform(safe(req.platform));
         token.setLocale(safe(req.locale));

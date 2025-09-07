@@ -83,6 +83,9 @@ logging:
 
 # Firebase Authentication
 firebase:
+  service:
+    # Path relative to the API module working directory
+    account: sahaja-swalayan-ecommerce-api/secrets/firebase-dev.json
   project-id: ${FIREBASE_PROJECT_ID:sahaja-dev}
 
 # Shipping Origin (Warehouse) Configuration
@@ -106,3 +109,14 @@ shipping:
     collection-method: ${SHIPPING_ORIGIN_COLLECTION_METHOD:pickup}
     latitude: ${SHIPPING_ORIGIN_LATITUDE:-6.200000}
     longitude: ${SHIPPING_ORIGIN_LONGITUDE:106.816666}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+    prometheus:
+      enabled: true

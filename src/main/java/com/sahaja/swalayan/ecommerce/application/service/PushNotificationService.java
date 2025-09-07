@@ -7,6 +7,7 @@ import com.google.firebase.messaging.*;
 import com.sahaja.swalayan.ecommerce.infrastructure.repository.NotificationTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,12 @@ public class PushNotificationService {
     private final NotificationTokenRepository tokenRepo;
     private volatile boolean initialized = false;
 
+    @Value("${firebase.service.account:}")
+    private String serviceAccountPathProp;
+
+    @Value("${firebase.service.account.json:}")
+    private String serviceAccountJsonProp;
+
     @PostConstruct
     public void init() {
         try {
@@ -35,29 +42,79 @@ public class PushNotificationService {
                 log.info("FirebaseApp already initialized.");
                 return;
             }
-            // Try to load service account JSON from classpath
-            var resource = new ClassPathResource("firebase-service-account.json");
-            if (resource.exists()) {
-                FirebaseOptions options = FirebaseOptions.builder()
-                        .setCredentials(GoogleCredentials.fromStream(resource.getInputStream()))
-                        .build();
-                FirebaseApp.initializeApp(options);
-                initialized = true;
-                log.info("FirebaseApp initialized from classpath service account");
-            } else {
-                // Fallback: try default credentials (GOOGLE_APPLICATION_CREDENTIALS)
+
+            // 1) If a path is provided, try file system path first, then classpath
+            String path = (serviceAccountPathProp != null && !serviceAccountPathProp.trim().isEmpty()) ? serviceAccountPathProp.trim() : null;
+            if (path != null) {
                 try {
+                    var fs = new org.springframework.core.io.FileSystemResource(path);
+                    if (fs.exists()) {
+                        FirebaseOptions options = FirebaseOptions.builder()
+                                .setCredentials(GoogleCredentials.fromStream(fs.getInputStream()))
+                                .build();
+                        FirebaseApp.initializeApp(options);
+                        initialized = true;
+                        log.info("FirebaseApp initialized from explicit file path: {}", path);
+                        return;
+                    }
+                } catch (Exception ignore) {}
+
+                try {
+                    var cp = new ClassPathResource(path);
+                    if (cp.exists()) {
+                        FirebaseOptions options = FirebaseOptions.builder()
+                                .setCredentials(GoogleCredentials.fromStream(cp.getInputStream()))
+                                .build();
+                        FirebaseApp.initializeApp(options);
+                        initialized = true;
+                        log.info("FirebaseApp initialized from classpath resource: {}", path);
+                        return;
+                    }
+                } catch (Exception ignore) {}
+            }
+
+            // 2) Try default classpath filename
+            try {
+                var cpDefault = new ClassPathResource("firebase-service-account.json");
+                if (cpDefault.exists()) {
                     FirebaseOptions options = FirebaseOptions.builder()
-                            .setCredentials(GoogleCredentials.getApplicationDefault())
+                            .setCredentials(GoogleCredentials.fromStream(cpDefault.getInputStream()))
                             .build();
                     FirebaseApp.initializeApp(options);
                     initialized = true;
-                    log.info("FirebaseApp initialized from application default credentials");
-                } catch (Exception e) {
-                    log.warn("Firebase not configured (no service account). Push notifications will be no-op.");
+                    log.info("FirebaseApp initialized from classpath default firebase-service-account.json");
+                    return;
                 }
-            }
-        } catch (IOException e) {
+            } catch (Exception ignore) {}
+
+            // 3) Try JSON provided via property (not recommended for prod)
+            try {
+                if (serviceAccountJsonProp != null && !serviceAccountJsonProp.trim().isEmpty()) {
+                    byte[] bytes = serviceAccountJsonProp.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    java.io.InputStream is = new java.io.ByteArrayInputStream(bytes);
+                    FirebaseOptions options = FirebaseOptions.builder()
+                            .setCredentials(GoogleCredentials.fromStream(is))
+                            .build();
+                    FirebaseApp.initializeApp(options);
+                    initialized = true;
+                    log.info("FirebaseApp initialized from inline JSON property");
+                    return;
+                }
+            } catch (Exception ignore) {}
+
+            // 4) Fallback: Application Default Credentials (e.g., GOOGLE_APPLICATION_CREDENTIALS)
+            try {
+                FirebaseOptions options = FirebaseOptions.builder()
+                        .setCredentials(GoogleCredentials.getApplicationDefault())
+                        .build();
+                FirebaseApp.initializeApp(options);
+                initialized = true;
+                log.info("FirebaseApp initialized from application default credentials");
+                return;
+            } catch (Exception ignore) {}
+
+            log.warn("Firebase not configured (no service account). Push notifications will be no-op. Configure firebase.service.account or GOOGLE_APPLICATION_CREDENTIALS.");
+        } catch (Exception e) {
             log.warn("Failed to initialize FirebaseApp: {}", e.getMessage());
         }
     }
@@ -89,6 +146,23 @@ public class PushNotificationService {
                         .setBody("Order " + orderId + ": " + (status != null ? status : "update"))
                         .build(),
                 WebpushConfig.builder().setFcmOptions(WebpushFcmOptions.withLink("/admin/orders/" + orderId)).build(),
+                data
+        );
+    }
+
+    public void sendRefundUpdateToAdmins(UUID orderId, String status, String message) {
+        if (!isEnabled()) return;
+        var tokens = tokenRepo.findAllByAppAndRevokedFalse("sahaja-admin");
+        var data = new java.util.HashMap<String,String>();
+        data.put("type","refund_job_update");
+        if (orderId != null) data.put("orderId", orderId.toString());
+        if (status != null) data.put("status", status);
+        if (message != null) data.put("message", message);
+        multicastSend(tokens.stream().map(t -> t.getToken()).collect(Collectors.toList()),
+                Notification.builder().setTitle("Refund update")
+                        .setBody("Refund " + (orderId != null ? ("for order " + orderId + ": ") : "") + (status != null ? status : "update"))
+                        .build(),
+                WebpushConfig.builder().setFcmOptions(WebpushFcmOptions.withLink(orderId != null ? "/admin/orders/" + orderId : "/admin")).build(),
                 data
         );
     }

@@ -11,6 +11,7 @@ import com.sahaja.swalayan.ecommerce.infrastructure.external.shipping.dto.*;
 import com.sahaja.swalayan.ecommerce.infrastructure.repository.ShippingJobRepository;
 import com.sahaja.swalayan.ecommerce.infrastructure.repository.StoreSettingsRepository;
 import com.sahaja.swalayan.ecommerce.domain.model.settings.StoreSettings;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -38,6 +39,7 @@ public class ShippingJobWorker {
     private final StoreSettingsRepository storeSettingsRepository;
     private final NotificationService notificationService;
     private final PushNotificationService pushNotificationService;
+    private final MeterRegistry meterRegistry;
 
     @Scheduled(fixedDelay = 30000)
     @Transactional
@@ -70,6 +72,7 @@ public class ShippingJobWorker {
                     job.setStatus(ShippingJob.ShippingJobStatus.FAILED);
                 }
                 shippingJobRepository.save(job);
+                try { meterRegistry.counter("jobs.shipping", "status", job.getStatus().name()).increment(); } catch (Exception ignore) {}
                 try { notificationService.notifyShippingJobUpdate(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
                 try { pushNotificationService.sendShippingUpdateToAdmins(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
             } catch (Exception ex) {
@@ -84,6 +87,7 @@ public class ShippingJobWorker {
                     job.setStatus(ShippingJob.ShippingJobStatus.FAILED);
                 }
                 shippingJobRepository.save(job);
+                try { meterRegistry.counter("jobs.shipping", "status", job.getStatus().name()).increment(); } catch (Exception ignore) {}
                 try { notificationService.notifyShippingJobUpdate(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
                 try { pushNotificationService.sendShippingUpdateToAdmins(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
             }
@@ -200,6 +204,7 @@ public class ShippingJobWorker {
 
             job.setStatus(ShippingJob.ShippingJobStatus.SUCCEEDED);
             shippingJobRepository.save(job);
+            try { meterRegistry.counter("jobs.shipping", "status", job.getStatus().name()).increment(); } catch (Exception ignore) {}
             try { notificationService.notifyShippingJobUpdate(order.getId(), job.getStatus().name(), "Shipping order created"); } catch (Exception ignore) {}
             try { pushNotificationService.sendShippingUpdateToAdmins(order.getId(), job.getStatus().name(), "Shipping order created"); } catch (Exception ignore) {}
         } else {

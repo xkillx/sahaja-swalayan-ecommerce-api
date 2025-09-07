@@ -42,11 +42,15 @@ public class NotificationEvent {
     @Column(name = "body", length = 500)
     private String body;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.LONGVARCHAR)
     @Column(name = "data", columnDefinition = "text")
     private String data; // JSON string with additional fields
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "read_at")
+    private LocalDateTime readAt;
 
     @PrePersist
     protected void onCreate() {

@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface NotificationEventRepository extends JpaRepository<NotificationEvent, UUID> {
     List<NotificationEvent> findAllByAudienceOrderByCreatedAtDesc(String audience, Pageable pageable);
     List<NotificationEvent> findAllByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+    long countByAudienceAndReadAtIsNull(String audience);
 }

@@ -9,6 +9,7 @@ import com.sahaja.swalayan.ecommerce.infrastructure.repository.OrderJpaRepositor
 import com.sahaja.swalayan.ecommerce.domain.repository.OrderRepository;
 import com.sahaja.swalayan.ecommerce.domain.repository.PaymentRepository;
 import com.sahaja.swalayan.ecommerce.infrastructure.repository.RefundJobRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -31,6 +32,9 @@ public class RefundJobWorker {
     private final OrderRepository orderRepository;
     private final com.sahaja.swalayan.ecommerce.infrastructure.xendit.XenditRefundClient xenditRefundClient;
     private final com.sahaja.swalayan.ecommerce.infrastructure.config.XenditProperties xenditProperties;
+    private final NotificationService notificationService;
+    private final PushNotificationService pushNotificationService;
+    private final MeterRegistry meterRegistry;
 
     // Process refund jobs every 30 seconds
     @Scheduled(fixedDelay = 30000)
@@ -96,6 +100,9 @@ public class RefundJobWorker {
 
                 job.setStatus(RefundJob.RefundJobStatus.SUCCEEDED);
                 refundJobRepository.save(job);
+                try { meterRegistry.counter("jobs.refund", "status", job.getStatus().name()).increment(); } catch (Exception ignore) {}
+                try { notificationService.notifyRefundJobUpdate(job.getOrderId(), job.getStatus().name(), "Refund succeeded"); } catch (Exception ignore) {}
+                try { pushNotificationService.sendRefundUpdateToAdmins(job.getOrderId(), job.getStatus().name(), "Refund succeeded"); } catch (Exception ignore) {}
                 log.debug("[refund-job] Succeeded for order {}", job.getOrderId());
             } catch (org.springframework.web.client.HttpStatusCodeException httpEx) {
                 // Classify retryable vs non-retryable based on status
@@ -111,6 +118,9 @@ public class RefundJobWorker {
                     job.setStatus(RefundJob.RefundJobStatus.FAILED);
                 }
                 refundJobRepository.save(job);
+                try { meterRegistry.counter("jobs.refund", "status", job.getStatus().name()).increment(); } catch (Exception ignore) {}
+                try { notificationService.notifyRefundJobUpdate(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
+                try { pushNotificationService.sendRefundUpdateToAdmins(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
                 log.warn("[refund-job] HTTP failure for order {}: {}", job.getOrderId(), httpEx.getMessage());
             } catch (Exception ex) {
                 // Non-http errors: retry unless clearly a validation bug
@@ -125,6 +135,9 @@ public class RefundJobWorker {
                     job.setStatus(RefundJob.RefundJobStatus.FAILED);
                 }
                 refundJobRepository.save(job);
+                try { meterRegistry.counter("jobs.refund", "status", job.getStatus().name()).increment(); } catch (Exception ignore) {}
+                try { notificationService.notifyRefundJobUpdate(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
+                try { pushNotificationService.sendRefundUpdateToAdmins(job.getOrderId(), job.getStatus().name(), job.getLastError()); } catch (Exception ignore) {}
                 log.warn("[refund-job] Failed for order {}: {}", job.getOrderId(), ex.getMessage());
             }
         }

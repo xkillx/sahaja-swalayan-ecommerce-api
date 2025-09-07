@@ -31,4 +31,4 @@ build/
 
 ### VS Code ###
 .vscode/
-/secrets/firebase-dev.json.json
+/secrets/firebase-dev.json
