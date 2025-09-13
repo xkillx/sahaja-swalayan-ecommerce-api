@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sahaja.swalayan.ecommerce.domain.model.notification.NotificationEvent;
 import com.sahaja.swalayan.ecommerce.infrastructure.repository.NotificationEventRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Lightweight in-app notification service using Server-Sent Events (SSE).
@@ -34,6 +36,9 @@ public class NotificationService {
 
     private final NotificationEventRepository eventRepo;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final MeterRegistry meterRegistry;
+    private final AtomicInteger adminOpen = new AtomicInteger(0);
+    private final AtomicInteger userOpen = new AtomicInteger(0);
 
     // Admin subscribers (multiple tabs)
     private final List<SseEmitter> adminEmitters = new CopyOnWriteArrayList<>();
@@ -44,9 +49,23 @@ public class NotificationService {
     public SseEmitter subscribeAdmin() {
         SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT_MS);
         adminEmitters.add(emitter);
-        emitter.onCompletion(() -> adminEmitters.remove(emitter));
-        emitter.onTimeout(() -> adminEmitters.remove(emitter));
-        emitter.onError(e -> adminEmitters.remove(emitter));
+        adminOpen.incrementAndGet();
+        meterRegistry.counter("sse.connections.open", "channel", "admin").increment();
+        emitter.onCompletion(() -> {
+            adminEmitters.remove(emitter);
+            adminOpen.decrementAndGet();
+            meterRegistry.counter("sse.connections.closed", "channel", "admin").increment();
+        });
+        emitter.onTimeout(() -> {
+            adminEmitters.remove(emitter);
+            adminOpen.decrementAndGet();
+            meterRegistry.counter("sse.connections.timeout", "channel", "admin").increment();
+        });
+        emitter.onError(e -> {
+            adminEmitters.remove(emitter);
+            adminOpen.decrementAndGet();
+            meterRegistry.counter("sse.connections.error", "channel", "admin").increment();
+        });
         // Send initial ping
         trySend(emitter, SseEmitter.event().name("ping").data("connected:" + Instant.now().toString()));
         return emitter;
@@ -55,9 +74,23 @@ public class NotificationService {
     public SseEmitter subscribeUser(UUID userId) {
         SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT_MS);
         userEmitters.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>()).add(emitter);
-        emitter.onCompletion(() -> removeUserEmitter(userId, emitter));
-        emitter.onTimeout(() -> removeUserEmitter(userId, emitter));
-        emitter.onError(e -> removeUserEmitter(userId, emitter));
+        userOpen.incrementAndGet();
+        meterRegistry.counter("sse.connections.open", "channel", "user").increment();
+        emitter.onCompletion(() -> {
+            removeUserEmitter(userId, emitter);
+            userOpen.decrementAndGet();
+            meterRegistry.counter("sse.connections.closed", "channel", "user").increment();
+        });
+        emitter.onTimeout(() -> {
+            removeUserEmitter(userId, emitter);
+            userOpen.decrementAndGet();
+            meterRegistry.counter("sse.connections.timeout", "channel", "user").increment();
+        });
+        emitter.onError(e -> {
+            removeUserEmitter(userId, emitter);
+            userOpen.decrementAndGet();
+            meterRegistry.counter("sse.connections.error", "channel", "user").increment();
+        });
         trySend(emitter, SseEmitter.event().name("ping").data("connected:" + Instant.now().toString()));
         return emitter;
     }
@@ -73,6 +106,7 @@ public class NotificationService {
     private void trySend(SseEmitter emitter, SseEmitter.SseEventBuilder event) {
         try {
             emitter.send(event);
+            try { meterRegistry.counter("sse.events.sent").increment(); } catch (Exception ignore) {}
         } catch (IOException e) {
             try { emitter.complete(); } catch (Exception ignore) {}
         } catch (IllegalStateException e) {
@@ -140,5 +174,52 @@ public class NotificationService {
         payload.put("ts", Instant.now().toString());
         notifyAdmins("shipping", payload);
         persistAdmin("shipping_job_update", "Shipping update", "Order " + orderId + ": " + (status != null ? status : "update"), payload);
+    }
+
+    public void notifyRefundJobUpdate(UUID orderId, String status, String message) {
+        var payload = new java.util.HashMap<String, Object>();
+        payload.put("type", "refund_job_update");
+        payload.put("orderId", orderId != null ? orderId.toString() : null);
+        if (status != null) payload.put("status", status);
+        if (message != null) payload.put("message", message);
+        payload.put("ts", Instant.now().toString());
+        notifyAdmins("refund", payload);
+        persistAdmin("refund_job_update", "Refund update", "Order " + (orderId != null ? orderId : "-") + ": " + (status != null ? status : "update"), payload);
+    }
+
+    @javax.annotation.PostConstruct
+    void registerGauges() {
+        try {
+            io.micrometer.core.instrument.Gauge.builder("sse.connections.current", adminOpen, java.util.concurrent.atomic.AtomicInteger::get)
+                    .description("Current open SSE connections for admin channel")
+                    .tag("channel", "admin")
+                    .register(meterRegistry);
+            io.micrometer.core.instrument.Gauge.builder("sse.connections.current", userOpen, java.util.concurrent.atomic.AtomicInteger::get)
+                    .description("Current open SSE connections for user channel (aggregate)")
+                    .tag("channel", "user")
+                    .register(meterRegistry);
+        } catch (Exception ignore) {}
+    }
+
+    // Periodic heartbeat to keep SSE connections alive (every 25s)
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 25000)
+    public void heartbeat() {
+        try {
+            if (!adminEmitters.isEmpty()) {
+                for (var e : adminEmitters) {
+                    trySend(e, SseEmitter.event().name("ping").data("heartbeat:" + Instant.now().toString()));
+                }
+            }
+            if (!userEmitters.isEmpty()) {
+                for (var entry : userEmitters.entrySet()) {
+                    var list = entry.getValue();
+                    if (list != null) {
+                        for (var e : list) {
+                            trySend(e, SseEmitter.event().name("ping").data("heartbeat:" + Instant.now().toString()));
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignore) {}
     }
 }

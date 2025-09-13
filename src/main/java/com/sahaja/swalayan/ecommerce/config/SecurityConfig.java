@@ -68,6 +68,8 @@ public class SecurityConfig {
 
         http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
         http
+            // Enable CORS so Spring Security participates in CORS handling
+            .cors(cors -> {})
             // Disable CSRF for API endpoints (stateless authentication)
             .csrf(AbstractHttpConfigurer::disable)
 
@@ -132,6 +134,9 @@ public class SecurityConfig {
                 // Public webhooks (validated by their own tokens inside controllers)
                 .requestMatchers("/v1/payments/webhook").permitAll()
                 .requestMatchers("/v1/shipping/webhook").permitAll()
+
+                // SSE admin helper endpoint (token-in-query): controller validates JWT & role
+                .requestMatchers(HttpMethod.GET, "/v1/notifications/stream/admin/auth").permitAll()
                 
                 // Public endpoints - Health checks and documentation
                 .requestMatchers("/v1/auth/register", "/v1/auth/confirm", "/v1/jwt/extract", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/actuator/info", "/favicon.ico", "/error")
