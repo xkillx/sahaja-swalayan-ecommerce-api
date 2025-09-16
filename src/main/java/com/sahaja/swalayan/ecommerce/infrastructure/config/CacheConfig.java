@@ -25,18 +25,21 @@ public class CacheConfig {
         CaffeineCache areasCache = new CaffeineCache(
                 CACHE_AREAS,
                 Caffeine.newBuilder()
+                        .recordStats()
                         .expireAfterWrite(Duration.ofMinutes(10))
                         .maximumSize(5_000)
                         .build());
         CaffeineCache couriersCache = new CaffeineCache(
                 CACHE_COURIERS,
                 Caffeine.newBuilder()
+                        .recordStats()
                         .expireAfterWrite(Duration.ofHours(4))
                         .maximumSize(1_000)
                         .build());
         CaffeineCache cancellationReasonsCache = new CaffeineCache(
                 CACHE_CANCELLATION_REASONS,
                 Caffeine.newBuilder()
+                        .recordStats()
                         .expireAfterWrite(Duration.ofHours(24))
                         .maximumSize(100)
                         .build());
