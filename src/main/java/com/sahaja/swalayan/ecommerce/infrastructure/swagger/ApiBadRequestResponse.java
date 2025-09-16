@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.http.MediaType;
+import org.springframework.core.annotation.AliasFor;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -40,6 +41,7 @@ public @interface ApiBadRequestResponse {
      * Custom description for the bad request response.
      * @return the response description
      */
+    @AliasFor(annotation = ApiResponse.class, attribute = "description")
     String description() default "Invalid input data or validation errors";
     
     /**
