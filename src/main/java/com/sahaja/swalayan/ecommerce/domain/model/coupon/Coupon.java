@@ -33,6 +33,7 @@ public class Coupon extends AuditableEntity {
     private BigDecimal minSpend; // optional minimal subtotal requirement
 
     @Column(nullable = false)
+    @Builder.Default
     private boolean active = true;
 
     public enum DiscountType { PERCENT, FIXED }
