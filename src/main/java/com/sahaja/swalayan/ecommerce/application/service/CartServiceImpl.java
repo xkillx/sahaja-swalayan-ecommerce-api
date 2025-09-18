@@ -48,7 +48,7 @@ public class CartServiceImpl implements CartService {
     @Override
     public Cart getCartForUser(UUID userId) {
         log.debug("getCartForUser called with userId={}", userId);
-        return cartRepository.findByUserId(userId)
+        return cartRepository.findByUserIdWithItemsAndProduct(userId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user"));
     }
 
@@ -98,7 +98,10 @@ public class CartServiceImpl implements CartService {
             cart.getItems().add(item);
             cartItemRepository.save(item);
         }
-        return cartRepository.save(cart);
+        cartRepository.save(cart);
+        // reload with fetch joins to ensure lazy associations are initialized
+        return cartRepository.findByUserIdWithItemsAndProduct(userId)
+                .orElseThrow(() -> new CartNotFoundException("Cart not found"));
     }
 
     @Override
@@ -122,7 +125,9 @@ public class CartServiceImpl implements CartService {
         log.debug("Updating cart item id={} quantity to {}", item.getId(), request.getQuantity());
         item.setQuantity(request.getQuantity());
         cartItemRepository.save(item);
-        return cartRepository.save(cart);
+        cartRepository.save(cart);
+        return cartRepository.findByUserIdWithItemsAndProduct(userId)
+                .orElseThrow(() -> new CartNotFoundException("Cart not found"));
     }
 
     @Override
@@ -135,7 +140,9 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new CartItemNotFoundException("Cart item not found"));
         cart.getItems().remove(item);
         cartItemRepository.deleteById(itemId);
-        return cartRepository.save(cart);
+        cartRepository.save(cart);
+        return cartRepository.findByUserIdWithItemsAndProduct(userId)
+                .orElseThrow(() -> new CartNotFoundException("Cart not found"));
     }
 
     @Override
@@ -144,7 +151,9 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new CartNotFoundException("Cart not found for user"));
         cart.getItems().forEach(item -> cartItemRepository.deleteById(item.getId()));
         cart.getItems().clear();
-        return cartRepository.save(cart);
+        cartRepository.save(cart);
+        return cartRepository.findByUserIdWithItemsAndProduct(userId)
+                .orElseThrow(() -> new CartNotFoundException("Cart not found"));
     }
 
     @Transactional

@@ -17,6 +17,7 @@ public interface CartJpaRepository extends JpaRepository<Cart, UUID> {
     @Query("""
                select distinct c
                from Cart c
+               left join fetch c.user u
                left join fetch c.items i
                left join fetch i.product p
                where c.user.id = :userId
