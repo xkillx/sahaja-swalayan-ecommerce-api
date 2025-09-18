@@ -9,7 +9,7 @@ import com.sahaja.swalayan.ecommerce.domain.repository.OrderRepository;
 import com.sahaja.swalayan.ecommerce.domain.repository.OrderItemRepository;
 import com.sahaja.swalayan.ecommerce.domain.service.InventoryService;
 import com.sahaja.swalayan.ecommerce.domain.service.OrderService;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -130,17 +130,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Order> getOrdersByUser(UUID userId) {
         log.debug("Fetching orders for userId={}", userId);
-        List<Order> orders = orderRepository.findByUserId(userId);
+        // Eager-load items and shippingAddress to avoid LazyInitializationException during DTO mapping
+        List<Order> orders = orderRepository.findByUserIdWithDetails(userId);
         log.debug("Fetched {} orders for userId={}", orders.size(), userId);
         return orders;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Order getOrderByIdForUser(UUID orderId, UUID userId) {
         log.debug("Fetching order by id={} for userId={}", orderId, userId);
-        var orderOpt = orderRepository.findById(orderId);
+        // Eager-load items and shippingAddress to avoid LazyInitializationException during DTO mapping
+        var orderOpt = orderRepository.findOneWithDetailsById(orderId);
         if (orderOpt.isEmpty()) {
             log.debug("Order not found: {} for userId={}", orderId, userId);
             throw new OrderNotFoundException("Order not found: " + orderId);

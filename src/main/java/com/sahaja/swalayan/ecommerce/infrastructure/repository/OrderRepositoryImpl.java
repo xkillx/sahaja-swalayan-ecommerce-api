@@ -47,6 +47,16 @@ public class OrderRepositoryImpl implements OrderRepository {
     }
 
     @Override
+    public List<Order> findByUserIdWithDetails(UUID userId) {
+        return jpaRepository.findAllWithDetailsByUserId(userId);
+    }
+
+    @Override
+    public Optional<Order> findOneWithDetailsById(UUID id) {
+        return jpaRepository.findWithDetailsById(id);
+    }
+
+    @Override
     public void deleteById(UUID id) {
         jpaRepository.deleteById(id);
     }

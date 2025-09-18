@@ -12,6 +12,9 @@ public interface OrderRepository {
     List<Order> findByUserId(UUID userId);
     Optional<Order> findByTrackingId(String trackingId);
     Optional<Order> findByShippingOrderId(String shippingOrderId);
+    // Eager-loading variants to safely map outside transaction
+    List<Order> findByUserIdWithDetails(UUID userId);
+    Optional<Order> findOneWithDetailsById(UUID id);
     void deleteById(UUID id);
     void delete(Order order);
 }

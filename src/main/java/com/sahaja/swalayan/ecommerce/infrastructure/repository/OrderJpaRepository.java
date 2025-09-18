@@ -5,6 +5,7 @@ import com.sahaja.swalayan.ecommerce.domain.model.order.Status;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -19,6 +20,13 @@ public interface OrderJpaRepository extends JpaRepository<Order, UUID> {
     List<Order> findByUserId(UUID userId);
     Optional<Order> findByTrackingId(String trackingId);
     Optional<Order> findByShippingOrderId(String shippingOrderId);
+
+    // Eager-loading variants to avoid LazyInitializationException when mapping to DTOs outside transaction
+    @EntityGraph(attributePaths = {"items", "shippingAddress"})
+    List<Order> findAllWithDetailsByUserId(UUID userId);
+
+    @EntityGraph(attributePaths = {"items", "shippingAddress"})
+    Optional<Order> findWithDetailsById(UUID id);
 
     // Admin list helpers
     Page<Order> findAll(Pageable pageable);
